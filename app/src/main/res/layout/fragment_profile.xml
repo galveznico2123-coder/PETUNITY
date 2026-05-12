@@ -82,7 +82,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        tools:text="Citizen Member"
+                        tools:text="Pet Starter 🐣"
                         android:textColor="@color/primary"
                         android:textStyle="bold"
                         android:textSize="14sp" />
@@ -154,16 +154,17 @@
                     android:gravity="center"
                     android:orientation="vertical">
                     <TextView
+                        android:id="@+id/txtPetsHelped"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="0"
+                        android:text="0.0"
                         android:textColor="@color/text_primary"
                         android:textSize="18sp"
                         android:textStyle="bold" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Rescues"
+                        android:text="Pets Helped"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -175,16 +176,18 @@
                     android:gravity="center"
                     android:orientation="vertical">
                     <TextView
+                        android:id="@+id/txtPointsLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="0"
+                        android:text="Level 1"
                         android:textColor="@color/text_primary"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:gravity="center" />
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Points"
+                        android:text="Status"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -238,19 +241,6 @@
                         android:textColor="@color/text_primary"
                         android:textAllCaps="false"
                         app:icon="@drawable/ic_find"
-                        app:iconSize="20dp"
-                        app:iconPadding="16dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnMyMembership"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:text="@string/my_membership"
-                        android:gravity="start|center_vertical"
-                        android:textColor="@color/text_primary"
-                        android:textAllCaps="false"
-                        app:icon="@drawable/ic_logo"
                         app:iconSize="20dp"
                         app:iconPadding="16dp" />
 

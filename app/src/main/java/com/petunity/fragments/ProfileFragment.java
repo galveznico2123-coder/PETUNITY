@@ -24,11 +24,15 @@ import com.petunity.activities.EditProfileActivity;
 import com.petunity.activities.LoginActivity;
 import com.petunity.activities.MyPetsActivity;
 import com.petunity.activities.MyPostsActivity;
+import com.petunity.models.UserManager;
+
+import java.util.Locale;
 
 public class ProfileFragment extends Fragment {
 
     private ImageView profileImage;
     private TextView profileName, membershipType, txtReportCount, profileLocation, profileBio;
+    private TextView txtPetsHelped, txtPointsLabel;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
 
@@ -61,6 +65,10 @@ public class ProfileFragment extends Fragment {
         profileBio = view.findViewById(R.id.profileBio);
         txtReportCount = view.findViewById(R.id.txtReportCount);
         
+        // Stats mapping for Membership Level
+        txtPetsHelped = view.findViewById(R.id.txtPetsHelped);
+        txtPointsLabel = view.findViewById(R.id.txtPointsLabel);
+        
         MaterialButton btnEditProfile = view.findViewById(R.id.btnEditProfile);
         MaterialButton logoutButton = view.findViewById(R.id.logoutButton);
         MaterialButton myReportsButton = view.findViewById(R.id.btnMyReports);
@@ -69,6 +77,7 @@ public class ProfileFragment extends Fragment {
 
         loadUserData();
         fetchReportCount();
+        updateMembershipStats();
 
         if (btnEditProfile != null) {
             btnEditProfile.setOnClickListener(v -> {
@@ -98,6 +107,19 @@ public class ProfileFragment extends Fragment {
         }
     }
 
+    private void updateMembershipStats() {
+        UserManager user = UserManager.getInstance();
+        if (txtPetsHelped != null) {
+            txtPetsHelped.setText(String.format(Locale.getDefault(), "%.1f", user.getPetsHelped()));
+        }
+        if (txtPointsLabel != null) {
+            txtPointsLabel.setText(user.getMembershipLevelName());
+        }
+        if (membershipType != null) {
+            membershipType.setText(user.getMembershipLevelName());
+        }
+    }
+
     private void loadUserData() {
         String uid = mAuth.getUid();
         if (uid == null) return;
@@ -106,13 +128,18 @@ public class ProfileFragment extends Fragment {
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
                         String name = doc.getString("name");
-                        String membership = doc.getString("membershipType");
                         String location = doc.getString("location");
                         String bio = doc.getString("bio");
                         String url = doc.getString("profileImageUrl");
+                        Double helped = doc.getDouble("petsHelped");
+
+                        if (helped != null) {
+                            UserManager.getInstance().setPetsHelped(helped);
+                            updateMembershipStats();
+                        }
 
                         if (profileName != null && name != null) profileName.setText(name);
-                        if (membershipType != null && membership != null) membershipType.setText(membership);
+                        
                         if (profileLocation != null) {
                             if (location != null && !location.isEmpty()) {
                                 profileLocation.setText(location);
@@ -129,7 +156,7 @@ public class ProfileFragment extends Fragment {
                             }
                         }
                         
-                        if (profileImage != null) {
+                        if (profileImage != null && isAdded()) {
                             Glide.with(this)
                                     .load(url)
                                     .circleCrop()

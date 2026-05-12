@@ -8,6 +8,7 @@ public class UserManager {
     private static UserManager instance;
     private String name = "Demo User";
     private String membershipType = "Citizen Member";
+    private double petsHelped = 0.0;
     private Uri profileImageUri;
     private List<PetProfile> myPets = new ArrayList<>();
 
@@ -32,6 +33,22 @@ public class UserManager {
 
     public String getMembershipType() { return membershipType; }
     public void setMembershipType(String membershipType) { this.membershipType = membershipType; }
+
+    public double getPetsHelped() { return petsHelped; }
+    public void setPetsHelped(double petsHelped) { this.petsHelped = petsHelped; }
+    
+    public void addPetsHelped(double amount) {
+        this.petsHelped += amount;
+    }
+
+    public String getMembershipLevelName() {
+        int count = (int) Math.ceil(petsHelped);
+        if (count <= 5) return "Pet Starter 🐣";
+        if (count <= 15) return "Pet Buddy 🐶";
+        if (count <= 30) return "Pet Guardian 🛡️";
+        if (count <= 50) return "Pet Champion 🏆";
+        return "Pet Hero 🦸‍♀️🦸";
+    }
 
     public Uri getProfileImageUri() { return profileImageUri; }
     public void setProfileImageUri(Uri uri) { this.profileImageUri = uri; }

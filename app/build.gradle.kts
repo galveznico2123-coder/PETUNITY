@@ -96,6 +96,9 @@ dependencies {
     // Location
     implementation(libs.play.services.location)
 
+    // Lottie
+    implementation(libs.lottie)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

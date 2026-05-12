@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class AddPetActivity extends AppCompatActivity {
     private static final String TAG = "AddPetActivity";
@@ -151,17 +152,17 @@ public class AddPetActivity extends AppCompatActivity {
     private void validateImage() {
         if (savePetButton == null) return;
         savePetButton.setEnabled(false);
-        savePetButton.setText("Validating...");
+        savePetButton.setText(R.string.validating);
 
         ImageValidator.validateIsPet(this, selectedBitmap, new ImageValidator.ValidationCallback() {
             @Override
             public void onResult(boolean isPet) {
                 if (isPet) {
                     savePetButton.setEnabled(true);
-                    savePetButton.setText("Create Persona");
+                    savePetButton.setText(R.string.create_persona);
                 } else {
                     savePetButton.setEnabled(false);
-                    savePetButton.setText("No Pet Detected");
+                    savePetButton.setText(R.string.no_pet_detected);
                     Toast.makeText(AddPetActivity.this, "No pet detected. Please use a clear photo.", Toast.LENGTH_LONG).show();
                 }
             }
@@ -169,7 +170,7 @@ public class AddPetActivity extends AppCompatActivity {
             @Override
             public void onError(Exception e) {
                 savePetButton.setEnabled(true);
-                savePetButton.setText("Create Persona");
+                savePetButton.setText(R.string.create_persona);
                 Log.e(TAG, "Validation error", e);
             }
         });
@@ -178,7 +179,7 @@ public class AddPetActivity extends AppCompatActivity {
     private void uploadToCloudinary() {
         if (selectedImageUri == null || savePetButton == null) return;
         savePetButton.setEnabled(false);
-        savePetButton.setText("Finalizing Persona...");
+        savePetButton.setText(R.string.finalizing_persona);
 
         MediaManager.get().upload(selectedImageUri)
                 .unsigned("ml_defaults")
@@ -191,7 +192,7 @@ public class AddPetActivity extends AppCompatActivity {
                     }
                     @Override public void onError(String requestId, ErrorInfo error) {
                         savePetButton.setEnabled(true);
-                        savePetButton.setText("Create Persona");
+                        savePetButton.setText(R.string.create_persona);
                         Toast.makeText(AddPetActivity.this, "Upload Failed", Toast.LENGTH_SHORT).show();
                     }
                     @Override public void onReschedule(String requestId, ErrorInfo error) { }
@@ -199,10 +200,10 @@ public class AddPetActivity extends AppCompatActivity {
     }
 
     private void savePetPersona(String imageUrl) {
-        String name = petNameInput.getText().toString().trim();
-        String breed = breedInput.getText().toString().trim();
-        String ageStr = ageInput.getText().toString().trim();
-        String weightStr = weightInput.getText().toString().trim();
+        String name = petNameInput.getText() != null ? petNameInput.getText().toString().trim() : "";
+        String breed = breedInput.getText() != null ? breedInput.getText().toString().trim() : "";
+        String ageStr = ageInput.getText() != null ? ageInput.getText().toString().trim() : "";
+        String weightStr = weightInput.getText() != null ? weightInput.getText().toString().trim() : "";
         
         int age = ageStr.isEmpty() ? 0 : Integer.parseInt(ageStr);
         double weight = weightStr.isEmpty() ? 0.0 : Double.parseDouble(weightStr);

@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
@@ -95,14 +96,12 @@ public class PlayFragment extends Fragment {
                 .limit(1)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!isAdded()) return;
                     if (!queryDocumentSnapshots.isEmpty()) {
                         myPet = queryDocumentSnapshots.getDocuments().get(0).toObject(PetProfile.class);
                         fetchOtherPets();
                     } else {
                         Toast.makeText(getContext(), "Please create a Pet Persona first!", Toast.LENGTH_LONG).show();
-                        // Optional: Redirect to AddPetActivity automatically
-                        // Intent intent = new Intent(requireContext(), AddPetActivity.class);
-                        // startActivity(intent);
                     }
                 });
     }
@@ -112,6 +111,7 @@ public class PlayFragment extends Fragment {
                 .whereNotEqualTo("ownerId", mAuth.getUid())
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!isAdded()) return;
                     potentialMatches.clear();
                     for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
                         PetProfile other = doc.toObject(PetProfile.class);
@@ -123,13 +123,15 @@ public class PlayFragment extends Fragment {
     }
 
     private void showNextMatch() {
+        if (!isAdded()) return;
+
         if (potentialMatches.isEmpty()) {
             Toast.makeText(getContext(), "No other pets found yet.", Toast.LENGTH_SHORT).show();
             return;
         }
         
         if (currentMatchIndex >= potentialMatches.size()) {
-            currentMatchIndex = 0; // Loop back or show "no more"
+            currentMatchIndex = 0; // Loop back
             Toast.makeText(getContext(), "Showing pets again...", Toast.LENGTH_SHORT).show();
         }
 
@@ -151,6 +153,7 @@ public class PlayFragment extends Fragment {
 
         Glide.with(this)
                 .load(match.getImageUrl())
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .placeholder(R.drawable.icon_dog)
                 .into(petImageView);
 
@@ -162,6 +165,7 @@ public class PlayFragment extends Fragment {
     }
 
     private void showPlaydateRequestModal(PetProfile match) {
+        if (!isAdded()) return;
         View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.dialog_playdate_request, null);
         AlertDialog dialog = new AlertDialog.Builder(getContext())
                 .setView(dialogView)
@@ -203,6 +207,7 @@ public class PlayFragment extends Fragment {
 
         db.collection("playdate_requests").add(request)
                 .addOnSuccessListener(doc -> {
+                    if (!isAdded()) return;
                     Toast.makeText(getContext(), "Playdate Request Sent!", Toast.LENGTH_SHORT).show();
                     currentMatchIndex++;
                     showNextMatch();

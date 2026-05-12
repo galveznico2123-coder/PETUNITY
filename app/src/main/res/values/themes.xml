@@ -15,7 +15,10 @@
 
     <style name="Theme.PetUnity.Splash" parent="Theme.PetUnity">
         <item name="android:windowBackground">@drawable/background_splash</item>
-        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:statusBarColor">#FFE0B2</item>
+        <item name="android:navigationBarColor">#FFE0B2</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
     </style>
 
     <style name="Widget.App.BottomNavigationView" parent="Widget.MaterialComponents.BottomNavigationView">
