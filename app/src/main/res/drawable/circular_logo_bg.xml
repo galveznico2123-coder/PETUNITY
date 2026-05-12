@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer shadow/gradient ring -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FFF0F0" />
+            <size
+                android:width="120dp"
+                android:height="120dp" />
+        </shape>
+    </item>
+
+    <!-- White background -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@android:color/white" />
+            <size
+                android:width="114dp"
+                android:height="114dp" />
+        </shape>
+    </item>
+
+    <!-- Colored border -->
+    <item>
+        <shape android:shape="oval">
+            <stroke
+                android:width="2dp"
+                android:color="@color/primary" />
+            <solid android:color="@android:color/transparent" />
+            <size
+                android:width="114dp"
+                android:height="114dp" />
+        </shape>
+    </item>
+</layer-list>

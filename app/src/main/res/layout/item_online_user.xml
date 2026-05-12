@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="8dp">
+
+    <FrameLayout
+        android:layout_width="64dp"
+        android:layout_height="64dp">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/onlineUserAvatar"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:padding="2dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/logo_pet"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.MaterialComponents.SmallComponent"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/primary_light" />
+
+        <View
+            android:id="@+id/onlineIndicator"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/online_indicator_background"
+            android:backgroundTint="#4CAF50" />
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/onlineUserName"
+        android:layout_width="64dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        tools:text="User"
+        android:textColor="@color/text_primary"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+</LinearLayout>

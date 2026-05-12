@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic Colors -->
+    <color name="black">#212121</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Pet Friendly Theme: Orange, White, Brown -->
+    <color name="primary">#FF9800</color> <!-- Friendly Orange -->
+    <color name="primary_dark">#F57C00</color>
+    <color name="primary_light">#FFF3E0</color>
+
+    <color name="accent">#795548</color> <!-- Warm Brown -->
+    <color name="accent_light">#D7CCC8</color>
+    <color name="accent_dark">#4E342E</color>
+
+    <color name="background">#FFFBF8</color> <!-- Very warm cream/white -->
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F5F5F5</color>
+    <color name="card_background">#FFFFFF</color>
+
+    <color name="text_primary">#3E2723</color> <!-- Dark Brown for readability -->
+    <color name="text_secondary">#6D4C41</color> <!-- Medium Brown -->
+    <color name="stat_text">#8D6E63</color>
+
+    <color name="divider">#F1E9E7</color>
+    <color name="urgent_badge">#FF5252</color>
+    <color name="success_green">#4CAF50</color>
+    
+    <!-- Navigation Colors -->
+    <color name="nav_active_indicator">#33FF8800</color>
+</resources>
