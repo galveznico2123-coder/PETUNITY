@@ -10,6 +10,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.petunity.models.PetProfile;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class PlayViewModel extends ViewModel {
@@ -35,8 +36,9 @@ public class PlayViewModel extends ViewModel {
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (!queryDocumentSnapshots.isEmpty()) {
-                        myPet.setValue(queryDocumentSnapshots.getDocuments().get(0).toObject(PetProfile.class));
-                        fetchOtherPets();
+                        PetProfile pet = queryDocumentSnapshots.getDocuments().get(0).toObject(PetProfile.class);
+                        myPet.setValue(pet);
+                        fetchOtherPets(pet);
                     } else {
                         isLoading.setValue(false);
                         error.setValue("No pet persona found. Please create one first!");
@@ -48,7 +50,7 @@ public class PlayViewModel extends ViewModel {
                 });
     }
 
-    private void fetchOtherPets() {
+    private void fetchOtherPets(PetProfile currentUserPet) {
         db.collection("pet_profiles")
                 .whereNotEqualTo("ownerId", auth.getUid())
                 .get()
@@ -59,6 +61,16 @@ public class PlayViewModel extends ViewModel {
                         other.setId(doc.getId());
                         matches.add(other);
                     }
+
+                    // Sort matches: Priority to exact/high match scores
+                    if (currentUserPet != null) {
+                        Collections.sort(matches, (p1, p2) -> {
+                            int score1 = currentUserPet.calculateMatchScore(p1);
+                            int score2 = currentUserPet.calculateMatchScore(p2);
+                            return Integer.compare(score2, score1); // Descending order
+                        });
+                    }
+
                     potentialMatches.setValue(matches);
                     isLoading.setValue(false);
                 })

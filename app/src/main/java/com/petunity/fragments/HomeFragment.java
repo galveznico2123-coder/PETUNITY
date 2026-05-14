@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.airbnb.lottie.LottieAnimationView;
 import com.bumptech.glide.Glide;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
@@ -46,7 +47,7 @@ public class HomeFragment extends Fragment {
     
     private TextView helpedCountText, activeCountText, nearYouCountText, welcomeUserText, userRankText, pointsToNextLevel;
     private ImageView homeProfileImage;
-    private ProgressBar loadingProgressBar;
+    private LottieAnimationView loadingProgressBar;
     private LinearProgressIndicator miniMembershipProgress;
     private TextView emptyStateText;
     private HomeViewModel viewModel;

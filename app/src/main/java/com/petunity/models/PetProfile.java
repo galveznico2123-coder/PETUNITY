@@ -10,7 +10,7 @@ public class PetProfile implements Serializable {
     private String ownerName;
     private String name;
     private String breed;
-    private String location; // Added location field
+    private String location;
     private int age;
     private double weight;
     private String size; 
@@ -29,21 +29,55 @@ public class PetProfile implements Serializable {
         this.size = size;
     }
 
+    /**
+     * Calculates a compatibility score between 0 and 100.
+     * Diversity in scores is maintained to show a clear hierarchy.
+     */
     public int calculateMatchScore(PetProfile other) {
         if (other == null) return 0;
-        if (this.requiresVaccinated && !other.isVaccinated) return 0;
-        if (other.requiresVaccinated && !this.isVaccinated) return 0;
-        if (this.afraidOfLargeBreeds && "Large".equals(other.getSize())) return 10;
-        if (other.afraidOfLargeBreeds && "Large".equals(this.getSize())) return 10;
+        
+        // Start with a base compatibility
+        int score = 30; 
 
-        int score = 50; 
-        for (String tag : this.vibeTags) {
-            if (other.vibeTags.contains(tag)) {
-                score += 15;
+        // 1. Breed Match (Bonus +20)
+        if (this.breed != null && other.getBreed() != null && this.breed.equalsIgnoreCase(other.getBreed())) {
+            score += 20;
+        }
+
+        // 2. Size Match (Bonus +15)
+        if (this.size != null && other.getSize() != null && this.size.equalsIgnoreCase(other.getSize())) {
+            score += 15;
+        }
+
+        // 3. Vibe Tags Match (+10 per shared tag, max +30)
+        int sharedTags = 0;
+        if (this.vibeTags != null && other.getVibeTags() != null) {
+            for (String tag : this.vibeTags) {
+                if (other.getVibeTags().contains(tag)) {
+                    sharedTags++;
+                }
             }
         }
-        if (this.vibeTags.contains("High Energy") && other.vibeTags.contains("Playful")) score += 10;
-        return Math.min(score, 100);
+        score += Math.min(sharedTags * 10, 30);
+
+        // 4. Age Proximity (+5 if same life stage)
+        if (Math.abs(this.age - other.getAge()) <= 2) {
+            score += 5;
+        }
+
+        // 5. Dealbreakers (Heavy deductions instead of filtering, to keep them in the list)
+        if (this.requiresVaccinated && !other.isVaccinated()) {
+            score -= 40;
+        }
+        if (other.isRequiresVaccinated() && !this.isVaccinated) {
+            score -= 40;
+        }
+        if (this.afraidOfLargeBreeds && "Large".equalsIgnoreCase(other.getSize())) {
+            score -= 30;
+        }
+
+        // Clamp between 0 and 100
+        return Math.max(0, Math.min(score, 100));
     }
 
     // Getters and Setters

@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -15,40 +14,37 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
 import com.petunity.activities.AddPetActivity;
+import com.petunity.adapters.MatchesAdapter;
 import com.petunity.models.PetProfile;
 import com.petunity.viewmodels.PlayViewModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
-public class PlayFragment extends Fragment {
+public class PlayFragment extends Fragment implements MatchesAdapter.OnMatchClickListener {
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
     
-    private ImageView petImageView;
-    private TextView petNameText, petMatchScoreText, petBreedTagText, petDescriptionText;
-    private MaterialButton matchButton, passButton;
-    private View requestsButton, addPetButton;
+    private RecyclerView matchesRecyclerView;
+    private MatchesAdapter adapter;
     private ProgressBar loadingProgressBar;
     private TextView emptyStateText;
-    private View petCard;
+    private View requestsButton, addPetButton;
 
     private PlayViewModel viewModel;
-    private List<PetProfile> potentialMatches = new ArrayList<>();
-    private int currentMatchIndex = 0;
     private PetProfile myPet;
+    private List<PetProfile> matchesList = new ArrayList<>();
 
     @Nullable
     @Override
@@ -65,24 +61,23 @@ public class PlayFragment extends Fragment {
         viewModel = new ViewModelProvider(this).get(PlayViewModel.class);
 
         // UI Bindings
-        petImageView = view.findViewById(R.id.petImage);
-        petNameText = view.findViewById(R.id.dogName);
-        petMatchScoreText = view.findViewById(R.id.petMatchScore);
-        petBreedTagText = view.findViewById(R.id.petBreedTag);
-        petDescriptionText = view.findViewById(R.id.petDescription);
+        matchesRecyclerView = view.findViewById(R.id.matchesRecyclerView);
         loadingProgressBar = view.findViewById(R.id.loadingProgressBar);
         emptyStateText = view.findViewById(R.id.emptyStateText);
-        petCard = view.findViewById(R.id.petCard);
-        
-        matchButton = view.findViewById(R.id.matchButton);
-        passButton = view.findViewById(R.id.passButton);
         requestsButton = view.findViewById(R.id.requestsButton);
         addPetButton = view.findViewById(R.id.addPetButton);
 
+        setupRecyclerView();
         setupClickListeners();
         observeViewModel();
         
         viewModel.loadData();
+    }
+
+    private void setupRecyclerView() {
+        matchesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        adapter = new MatchesAdapter(matchesList, null, this);
+        matchesRecyclerView.setAdapter(adapter);
     }
 
     private void setupClickListeners() {
@@ -102,24 +97,24 @@ public class PlayFragment extends Fragment {
                 startActivity(new Intent(requireContext(), AddPetActivity.class));
             });
         }
-
-        if (passButton != null) {
-            passButton.setOnClickListener(v -> {
-                currentMatchIndex++;
-                showNextMatch();
-            });
-        }
     }
 
     private void observeViewModel() {
         viewModel.getMyPet().observe(getViewLifecycleOwner(), pet -> {
             this.myPet = pet;
+            // Re-initialize adapter with myPet to calculate scores
+            adapter = new MatchesAdapter(matchesList, myPet, this);
+            matchesRecyclerView.setAdapter(adapter);
         });
 
         viewModel.getPotentialMatches().observe(getViewLifecycleOwner(), matches -> {
-            this.potentialMatches = matches;
-            currentMatchIndex = 0;
-            showNextMatch();
+            matchesList.clear();
+            matchesList.addAll(matches);
+            adapter.notifyDataSetChanged();
+            
+            if (emptyStateText != null) {
+                emptyStateText.setVisibility(matches.isEmpty() ? View.VISIBLE : View.GONE);
+            }
         });
 
         viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
@@ -131,64 +126,13 @@ public class PlayFragment extends Fragment {
         viewModel.getError().observe(getViewLifecycleOwner(), error -> {
             if (error != null && isAdded()) {
                 Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
-                if (emptyStateText != null) {
-                    emptyStateText.setText(error);
-                    emptyStateText.setVisibility(View.VISIBLE);
-                }
-                if (petCard != null) petCard.setVisibility(View.GONE);
             }
         });
     }
 
-    private void showNextMatch() {
-        if (!isAdded()) return;
-
-        if (potentialMatches.isEmpty()) {
-            if (emptyStateText != null) {
-                emptyStateText.setText("No potential matches found.");
-                emptyStateText.setVisibility(View.VISIBLE);
-            }
-            if (petCard != null) petCard.setVisibility(View.GONE);
-            return;
-        }
-
-        if (petCard != null) petCard.setVisibility(View.VISIBLE);
-        if (emptyStateText != null) emptyStateText.setVisibility(View.GONE);
-        
-        if (currentMatchIndex >= potentialMatches.size()) {
-            currentMatchIndex = 0;
-            Toast.makeText(getContext(), "Showing pets again...", Toast.LENGTH_SHORT).show();
-        }
-
-        PetProfile match = potentialMatches.get(currentMatchIndex);
-        int score = myPet != null ? myPet.calculateMatchScore(match) : 50;
-
-        if (petNameText != null) petNameText.setText(String.format(Locale.getDefault(), "%s, %d", match.getName(), match.getAge()));
-        if (petBreedTagText != null) petBreedTagText.setText(String.format(Locale.getDefault(), "%s • %s", match.getBreed(), match.getSize()));
-        if (petMatchScoreText != null) petMatchScoreText.setText(String.format(Locale.getDefault(), "%d%% Match", score));
-        
-        StringBuilder details = new StringBuilder();
-        details.append("Weight: ").append(match.getWeight()).append("kg\n");
-        details.append("Vaccinated: ").append(match.isVaccinated() ? "Yes" : "No").append("\n\n");
-        
-        if (match.getVibeTags() != null) {
-            for (String tag : match.getVibeTags()) {
-                details.append("#").append(tag).append(" ");
-            }
-        }
-        if (petDescriptionText != null) petDescriptionText.setText(details.toString());
-
-        if (petImageView != null) {
-            Glide.with(this)
-                    .load(match.getImageUrl())
-                    .diskCacheStrategy(DiskCacheStrategy.ALL)
-                    .placeholder(R.drawable.icon_dog)
-                    .into(petImageView);
-        }
-
-        if (matchButton != null) {
-            matchButton.setOnClickListener(v -> showPlaydateRequestModal(match));
-        }
+    @Override
+    public void onMatchClick(PetProfile profile) {
+        showPlaydateRequestModal(profile);
     }
 
     private void showPlaydateRequestModal(PetProfile match) {
@@ -239,8 +183,6 @@ public class PlayFragment extends Fragment {
                 .addOnSuccessListener(doc -> {
                     if (isAdded()) {
                         Toast.makeText(getContext(), "Playdate Request Sent!", Toast.LENGTH_SHORT).show();
-                        currentMatchIndex++;
-                        showNextMatch();
                     }
                 })
                 .addOnFailureListener(e -> {

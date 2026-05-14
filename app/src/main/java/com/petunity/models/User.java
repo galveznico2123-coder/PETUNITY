@@ -1,10 +1,13 @@
 package com.petunity.models;
 
+import com.google.firebase.Timestamp;
+
 public class User {
     private String id;
     private String name;
     private String profileImageUrl;
     private boolean online;
+    private Timestamp lastActive;
 
     public User() {}
 
@@ -26,4 +29,7 @@ public class User {
 
     public boolean isOnline() { return online; }
     public void setOnline(boolean online) { this.online = online; }
+
+    public Timestamp getLastActive() { return lastActive; }
+    public void setLastActive(Timestamp lastActive) { this.lastActive = lastActive; }
 }

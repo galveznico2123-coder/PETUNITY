@@ -26,6 +26,7 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.petunity.R;
@@ -38,6 +39,7 @@ import com.petunity.fragments.PlayFragment;
 import com.petunity.fragments.ProfileFragment;
 import com.petunity.models.Post;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
@@ -109,6 +111,31 @@ public class MainActivity extends AppCompatActivity {
         });
 
         listenForUrgentAlerts();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        updateUserPresence(true);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        updateUserPresence(false);
+    }
+
+    private void updateUserPresence(boolean isOnline) {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid != null) {
+            Map<String, Object> status = new HashMap<>();
+            status.put("online", isOnline);
+            status.put("lastActive", FieldValue.serverTimestamp());
+            
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                    .update(status)
+                    .addOnFailureListener(e -> Log.e(TAG, "Failed to update presence", e));
+        }
     }
 
     private void setupNetworkListener() {
@@ -280,6 +307,7 @@ public class MainActivity extends AppCompatActivity {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) cm.unregisterNetworkCallback(networkCallback);
         }
+        updateUserPresence(false);
         binding = null;
     }
 }
