@@ -37,6 +37,7 @@ import com.petunity.fragments.HomeFragment;
 import com.petunity.fragments.PlayFragment;
 import com.petunity.fragments.ProfileFragment;
 import com.petunity.models.Post;
+import com.petunity.utils.PresenceManager;
 
 import java.util.Map;
 
@@ -270,6 +271,18 @@ public class MainActivity extends AppCompatActivity {
             };
         }
         requestPermissionLauncher.launch(permissions);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        PresenceManager.updateStatus(true);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        PresenceManager.updateStatus(false);
     }
 
     @Override

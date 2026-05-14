@@ -15,7 +15,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Create Pet Persona"
+            android:text="@string/create_pet_persona"
             android:textColor="@color/primary_dark"
             android:textSize="28sp"
             android:textStyle="bold" />
@@ -41,14 +41,15 @@
                     android:layout_height="150dp"
                     android:scaleType="centerCrop"
                     android:src="@drawable/logo_pet"
-                    android:background="#EEEEEE"/>
+                    android:background="#EEEEEE"
+                    android:contentDescription="@string/photo" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/selectImageButton"
                     style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Select Pet Photo" />
+                    android:text="@string/select_pet_photo" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -73,7 +74,7 @@
                     app:boxCornerRadiusBottomStart="16dp"
                     app:boxCornerRadiusTopEnd="16dp"
                     app:boxCornerRadiusTopStart="16dp"
-                    android:hint="Pet Name">
+                    android:hint="@string/pet_name">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/petNameInput"
@@ -91,7 +92,7 @@
                     app:boxCornerRadiusBottomStart="16dp"
                     app:boxCornerRadiusTopEnd="16dp"
                     app:boxCornerRadiusTopStart="16dp"
-                    android:hint="Breed">
+                    android:hint="@string/breed">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/breedInput"
@@ -104,7 +105,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginTop="16dp">
+                    android:layout_marginTop="16dp"
+                    android:baselineAligned="false">
 
                     <com.google.android.material.textfield.TextInputLayout
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -115,7 +117,7 @@
                         app:boxCornerRadiusBottomStart="16dp"
                         app:boxCornerRadiusTopEnd="16dp"
                         app:boxCornerRadiusTopStart="16dp"
-                        android:hint="Age">
+                        android:hint="@string/age">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/ageInput"
@@ -134,7 +136,7 @@
                         app:boxCornerRadiusBottomStart="16dp"
                         app:boxCornerRadiusTopEnd="16dp"
                         app:boxCornerRadiusTopStart="16dp"
-                        android:hint="Weight (kg)">
+                        android:hint="@string/weight_kg">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/weightInput"
@@ -148,7 +150,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:text="Pet Size"
+                    android:text="@string/pet_size"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold" />
 
@@ -164,14 +166,14 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Small" />
+                        android:text="@string/small" />
 
                     <RadioButton
                         android:id="@+id/radioMedium"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Medium"
+                        android:text="@string/medium"
                         android:checked="true" />
 
                     <RadioButton
@@ -179,7 +181,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Large" />
+                        android:text="@string/large" />
                 </RadioGroup>
 
                 <!-- Phase 1: Trait Tagging (Vibe Tags) -->
@@ -187,7 +189,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="24dp"
-                    android:text="Pet 'Vibe' (Select Tags)"
+                    android:text="@string/pet_vibe"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold" />
 
@@ -197,12 +199,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     app:chipSpacingVertical="4dp">
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="High Energy"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Shy"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dominant"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Submissive"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Toy-Motivated"/>
-                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Playful"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/high_energy"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/shy"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/dominant"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/submissive"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/toy_motivated"/>
+                    <com.google.android.material.chip.Chip style="@style/Widget.MaterialComponents.Chip.Filter" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/playful"/>
                 </com.google.android.material.chip.ChipGroup>
 
                 <!-- Phase 1: The Dealbreakers -->
@@ -210,7 +212,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="24dp"
-                    android:text="Dealbreakers &amp; Safety"
+                    android:text="@string/dealbreakers_safety"
                     android:textColor="@color/text_primary"
                     android:textStyle="bold" />
 
@@ -218,26 +220,26 @@
                     android:id="@+id/afraidLargeSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Afraid of large breeds" />
+                    android:text="@string/afraid_of_large_breeds" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/requireVaccinatedSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Only match with vaccinated pets" />
+                    android:text="@string/only_match_with_vaccinated_pets" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/isVaccinatedSwitch"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="My pet is vaccinated" />
+                    android:text="@string/my_pet_is_vaccinated" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/savePetButton"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
                     android:layout_marginTop="32dp"
-                    android:text="Create Persona"
+                    android:text="@string/create_persona"
                     android:textAllCaps="false"
                     android:textSize="18sp"
                     android:textStyle="bold"

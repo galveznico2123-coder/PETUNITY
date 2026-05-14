@@ -105,6 +105,29 @@
     <string name="no_pet_detected">No Pet Detected</string>
     <string name="finalizing_persona">Finalizing Persona...</string>
 
+    <string name="create_pet_persona">Create Pet Persona</string>
+    <string name="select_pet_photo">Select Pet Photo</string>
+    <string name="pet_name">Pet Name</string>
+    <string name="breed">Breed</string>
+    <string name="age">Age</string>
+    <string name="weight_kg">Weight (kg)</string>
+    <string name="pet_size">Pet Size</string>
+    <string name="small">Small</string>
+    <string name="medium">Medium</string>
+    <string name="large">Large</string>
+    <string name="pet_vibe">Pet \'Vibe\' (Select Tags)</string>
+    <string name="high_energy">High Energy</string>
+    <string name="shy">Shy</string>
+    <string name="dominant">Dominant</string>
+    <string name="submissive">Submissive</string>
+    <string name="toy_motivated">Toy-Motivated</string>
+    <string name="playful">Playful</string>
+    <string name="dealbreakers_safety">Dealbreakers &amp; Safety</string>
+    <string name="afraid_of_large_breeds">Afraid of large breeds</string>
+    <string name="only_match_with_vaccinated_pets">Only match with vaccinated pets</string>
+    <string name="my_pet_is_vaccinated">My pet is vaccinated</string>
+    <string name="my_pet">My Pet</string>
+
     <!-- Correct Web Client ID from google-services.json -->
     <string name="default_web_client_id">980498342431-58uuvgke4t99q8cuhifvcte26kqlh23p.apps.googleusercontent.com</string>
 </resources>

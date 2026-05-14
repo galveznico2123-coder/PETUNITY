@@ -57,7 +57,7 @@ public class OnlineUsersAdapter extends RecyclerView.Adapter<OnlineUsersAdapter.
         return userList.size();
     }
 
-    static class OnlineUserViewHolder extends RecyclerView.ViewHolder {
+    public static class OnlineUserViewHolder extends RecyclerView.ViewHolder {
         ImageView avatarImage;
         View onlineIndicator;
         TextView nameText;

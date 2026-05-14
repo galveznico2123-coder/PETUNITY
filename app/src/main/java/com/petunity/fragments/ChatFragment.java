@@ -45,6 +45,7 @@ public class ChatFragment extends Fragment {
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
     private ListenerRegistration conversationListener;
+    private final java.util.Map<String, ListenerRegistration> userListeners = new java.util.HashMap<>();
 
     @Nullable
     @Override
@@ -81,7 +82,6 @@ public class ChatFragment extends Fragment {
 
         if (mAuth.getCurrentUser() != null) {
             loadConversationsAndRecentUsers();
-            updateMyStatus(true);
         }
 
         EditText searchInput = view.findViewById(R.id.searchInput);
@@ -89,13 +89,6 @@ public class ChatFragment extends Fragment {
             searchInput.setOnClickListener(v ->
                     Toast.makeText(requireContext(), "Search feature coming soon!", Toast.LENGTH_SHORT).show()
             );
-        }
-    }
-
-    private void updateMyStatus(boolean online) {
-        String uid = mAuth.getUid();
-        if (uid != null) {
-            db.collection("users").document(uid).update("online", online);
         }
     }
 
@@ -113,85 +106,109 @@ public class ChatFragment extends Fragment {
                     }
 
                     if (value != null) {
-                        // Clear lists to refresh with only interacted users
                         conversations.clear();
                         recentUsers.clear();
+                        
+                        java.util.Set<String> activeUserIds = new java.util.HashSet<>();
                         
                         for (com.google.firebase.firestore.QueryDocumentSnapshot doc : value) {
                             try {
                                 Conversation conv = doc.toObject(Conversation.class);
                                 
-                                String otherId = null;
-                                if (conv.getParticipants() != null) {
-                                    for (String uid : conv.getParticipants()) {
+                                String foundOtherId = null;
+                                List<String> participants = conv.getParticipants();
+                                if (participants != null) {
+                                    for (String uid : participants) {
                                         if (!uid.equals(currentUserId)) {
-                                            otherId = uid;
+                                            foundOtherId = uid;
                                             break;
                                         }
                                     }
                                 }
                                 
-                                if (otherId == null) continue;
-                                conv.setOtherUserId(otherId);
+                                if (foundOtherId == null) continue;
+                                conv.setOtherUserId(foundOtherId);
+                                activeUserIds.add(foundOtherId);
 
-                                // Set initial data from conversation doc
-                                if (conv.getNames() != null && conv.getNames().containsKey(otherId)) {
-                                    conv.setName(conv.getNames().get(otherId));
+                                if (conv.getNames() != null && conv.getNames().containsKey(foundOtherId)) {
+                                    String name = conv.getNames().get(foundOtherId);
+                                    conv.setName(name);
                                 }
 
                                 conversations.add(conv);
-                                fetchUserDetailsForConversation(conv); // Fetch live avatar and name
                                 
+                                // Setup or reuse listener for this user
+                                listenToUserDetails(foundOtherId);
+
                                 // Add to horizontal bubble list
                                 User recentUser = new User();
-                                recentUser.setId(otherId);
-                                fetchUserDetailsForBubble(recentUser);
+                                recentUser.setId(foundOtherId);
+                                recentUsers.add(recentUser);
 
                             } catch (Exception e) {
                                 Log.e(TAG, "Error processing conversation", e);
                             }
                         }
+                        
+                        // Clean up listeners for users no longer in conversations
+                        java.util.Iterator<java.util.Map.Entry<String, ListenerRegistration>> it = userListeners.entrySet().iterator();
+                        while (it.hasNext()) {
+                            java.util.Map.Entry<String, ListenerRegistration> entry = it.next();
+                            if (!activeUserIds.contains(entry.getKey())) {
+                                entry.getValue().remove();
+                                it.remove();
+                            }
+                        }
+
                         adapter.notifyDataSetChanged();
                         onlineUsersAdapter.notifyDataSetChanged();
                     }
                 });
     }
 
-    private void fetchUserDetailsForConversation(Conversation conv) {
-        db.collection("users").document(conv.getOtherUserId()).get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
+    private void listenToUserDetails(String userId) {
+        if (userListeners.containsKey(userId)) {
+            return;
+        }
+
+        ListenerRegistration listener = db.collection("users").document(userId)
+                .addSnapshotListener((doc, error) -> {
+                    if (doc != null && doc.exists()) {
                         String name = doc.getString("name");
                         String avatarUrl = doc.getString("profileImageUrl");
-                        if (name != null) conv.setName(name);
-                        if (avatarUrl != null) conv.setAvatarUrl(avatarUrl);
-                        adapter.notifyDataSetChanged();
-                    }
-                });
-    }
-
-    private void fetchUserDetailsForBubble(User user) {
-        db.collection("users").document(user.getId()).get()
-                .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        user.setName(doc.getString("name"));
-                        user.setProfileImageUrl(doc.getString("profileImageUrl"));
-                        user.setOnline(doc.getBoolean("online") != null && doc.getBoolean("online"));
+                        Boolean isOnline = doc.getBoolean("online");
+                        Long lastSeen = doc.getLong("lastSeen");
                         
-                        // Check if already in list to avoid duplicates
-                        boolean exists = false;
-                        for (User u : recentUsers) {
-                            if (u.getId().equals(user.getId())) {
-                                exists = true;
-                                break;
+                        boolean actuallyOnline = isOnline != null && isOnline && 
+                                (lastSeen == null || (System.currentTimeMillis() - lastSeen < 60000)); // 1 min threshold
+
+                        // Update in conversations list
+                        for (Conversation c : conversations) {
+                            if (c.getOtherUserId() != null && c.getOtherUserId().equals(userId)) {
+                                if (name != null) c.setName(name);
+                                if (avatarUrl != null) c.setAvatarUrl(avatarUrl);
+                                c.setOnline(actuallyOnline);
                             }
                         }
-                        if (!exists) {
-                            recentUsers.add(user);
-                            onlineUsersAdapter.notifyDataSetChanged();
+
+                        // Update in recent bubbles list
+                        for (User u : recentUsers) {
+                            if (u.getId() != null && u.getId().equals(userId)) {
+                                if (name != null) u.setName(name);
+                                if (avatarUrl != null) u.setProfileImageUrl(avatarUrl);
+                                u.setOnline(actuallyOnline);
+                            }
+                        }
+
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                adapter.notifyDataSetChanged();
+                                onlineUsersAdapter.notifyDataSetChanged();
+                            });
                         }
                     }
                 });
+        userListeners.put(userId, listener);
     }
 
     private void showNotification(String senderName, String message) {
@@ -223,7 +240,10 @@ public class ChatFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        updateMyStatus(false);
         if (conversationListener != null) conversationListener.remove();
+        for (ListenerRegistration lr : userListeners.values()) {
+            lr.remove();
+        }
+        userListeners.clear();
     }
 }

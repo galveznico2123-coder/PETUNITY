@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.bumptech.glide.Glide;
@@ -20,6 +21,8 @@ import com.petunity.databinding.ActivityChatBinding;
 import com.petunity.models.Message;
 import com.petunity.adapters.ChatAdapter;
 import com.petunity.models.UserManager;
+import com.petunity.utils.PresenceManager;
+import com.petunity.utils.TimeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +43,7 @@ public class ChatActivity extends AppCompatActivity {
     private String otherUserAvatarUrl;
     private String conversationId;
     private ListenerRegistration messageListener;
+    private ListenerRegistration presenceListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,8 +87,40 @@ public class ChatActivity extends AppCompatActivity {
         binding.chatRecyclerView.setAdapter(adapter);
 
         listenForMessages();
+        listenForPresence();
 
         binding.sendButton.setOnClickListener(v -> sendMessage());
+    }
+
+    private void listenForPresence() {
+        if (otherUserId == null) return;
+        
+        presenceListener = db.collection("users").document(otherUserId)
+                .addSnapshotListener((doc, error) -> {
+                    if (error != null || doc == null || !doc.exists()) return;
+
+                    Boolean online = doc.getBoolean("online");
+                    Long lastSeen = doc.getLong("lastSeen");
+                    
+                    // A user is truly online if they are marked online AND were seen in the last 1 minute
+                    boolean isActuallyOnline = online != null && online && 
+                            (lastSeen == null || (System.currentTimeMillis() - lastSeen < 60000));
+
+                    if (isActuallyOnline) {
+                        binding.chatStatus.setText("Online");
+                        binding.chatStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
+                        binding.chatOnlineDot.setVisibility(android.view.View.VISIBLE);
+                    } else if (lastSeen != null) {
+                        String timeAgo = TimeUtils.getTimeAgo(new java.util.Date(lastSeen));
+                        binding.chatStatus.setText("Active " + timeAgo);
+                        binding.chatStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                        binding.chatOnlineDot.setVisibility(android.view.View.GONE);
+                    } else {
+                        binding.chatStatus.setText("Offline");
+                        binding.chatStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+                        binding.chatOnlineDot.setVisibility(android.view.View.GONE);
+                    }
+                });
     }
 
     private void listenForMessages() {
@@ -167,8 +203,21 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        PresenceManager.updateStatus(true);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        PresenceManager.updateStatus(false);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (messageListener != null) messageListener.remove();
+        if (presenceListener != null) presenceListener.remove();
     }
 }

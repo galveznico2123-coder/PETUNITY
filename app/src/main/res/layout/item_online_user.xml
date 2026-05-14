@@ -30,7 +30,8 @@
             android:layout_gravity="bottom|end"
             android:layout_margin="4dp"
             android:background="@drawable/online_indicator_background"
-            android:backgroundTint="#4CAF50" />
+            android:backgroundTint="#4CAF50"
+            android:visibility="gone" />
 
     </FrameLayout>
 

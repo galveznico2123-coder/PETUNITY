@@ -11,8 +11,8 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.petunity.R;
 import com.petunity.databinding.ItemPetListingBinding;
 import com.petunity.models.PetListing;
+import com.petunity.utils.TimeUtils;
 
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
 
@@ -20,7 +20,6 @@ public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetV
     private final List<PetListing> pets;
     private final OnContactClickListener listener;
     private final String currentUserId;
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
 
     public interface OnContactClickListener {
         void onContactClick(PetListing pet);
@@ -66,9 +65,9 @@ public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetV
             binding.petBreedText.setText(pet.getBreed());
             binding.petLocationText.setText(pet.getLocation());
             
-            // Display actual date instead of "just now"
+            // Display relative time
             if (pet.getTimestamp() != null) {
-                binding.petTimeText.setText(dateFormat.format(pet.getTimestamp().toDate()));
+                binding.petTimeText.setText(TimeUtils.getTimeAgo(pet.getTimestamp().toDate()));
             } else {
                 binding.petTimeText.setText(pet.getTimeAgo());
             }
@@ -86,11 +85,11 @@ public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetV
 
             // Logic to prevent contacting yourself
             if (pet.getUserId() != null && pet.getUserId().equals(currentUserId)) {
-                binding.contactButton.setText("My Pet");
+                binding.contactButton.setText(R.string.my_pet);
                 binding.contactButton.setEnabled(false);
                 binding.contactButton.setAlpha(0.5f);
             } else {
-                binding.contactButton.setText("Contact Owner");
+                binding.contactButton.setText(R.string.contact_owner);
                 binding.contactButton.setEnabled(true);
                 binding.contactButton.setAlpha(1.0f);
                 binding.contactButton.setOnClickListener(v -> listener.onContactClick(pet));

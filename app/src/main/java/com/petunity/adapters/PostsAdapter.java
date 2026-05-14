@@ -19,14 +19,13 @@ import com.petunity.activities.ChatActivity;
 import com.petunity.databinding.ItemPostBinding;
 import com.petunity.models.Post;
 import com.petunity.models.UserManager;
+import com.petunity.utils.TimeUtils;
 
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
 
 public class PostsAdapter extends RecyclerView.Adapter<PostsAdapter.PostViewHolder> {
     private final List<Post> posts;
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault());
 
     public PostsAdapter(List<Post> posts) {
         this.posts = posts;
@@ -89,9 +88,9 @@ public class PostsAdapter extends RecyclerView.Adapter<PostsAdapter.PostViewHold
                 binding.userAvatar.setImageResource(R.drawable.ic_user);
             }
 
-            // Display formatted date instead of static text
+            // Display relative time
             if (post.getTimestamp() != null) {
-                binding.timeText.setText(dateFormat.format(post.getTimestamp().toDate()));
+                binding.timeText.setText(TimeUtils.getTimeAgo(post.getTimestamp().toDate()));
             } else {
                 binding.timeText.setText(post.getTimeLabel());
             }
