@@ -1,0 +1,93 @@
+package com.petunity.viewmodels;
+
+import android.net.Uri;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.ViewModel;
+import com.cloudinary.android.MediaManager;
+import com.cloudinary.android.callback.ErrorInfo;
+import com.cloudinary.android.callback.UploadCallback;
+import com.google.firebase.Timestamp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.petunity.models.Post;
+import java.util.HashMap;
+import java.util.Map;
+
+public class AlertViewModel extends ViewModel {
+    private final MutableLiveData<Boolean> isUploading = new MutableLiveData<>(false);
+    private final MutableLiveData<String> uploadError = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> alertSent = new MutableLiveData<>(false);
+    private final FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+    public LiveData<Boolean> getIsUploading() { return isUploading; }
+    public LiveData<String> getUploadError() { return uploadError; }
+    public LiveData<Boolean> getAlertSent() { return alertSent; }
+
+    public void sendAlert(Uri imageUri, String description, String animalType, String location, boolean isUrgent, String currentUserName, String currentUserProfileImageUrl) {
+        if (imageUri == null) {
+            uploadError.setValue("Please select an image");
+            return;
+        }
+
+        isUploading.setValue(true);
+        MediaManager.get().upload(imageUri)
+                .unsigned("ml_defaults")
+                .callback(new UploadCallback() {
+                    @Override public void onStart(String requestId) {}
+                    @Override public void onProgress(String requestId, long bytes, long totalBytes) {}
+                    @Override public void onSuccess(String requestId, Map resultData) {
+                        String imageUrl = (String) resultData.get("secure_url");
+                        saveToFirestore(imageUrl, description, animalType, location, isUrgent, currentUserName, currentUserProfileImageUrl);
+                    }
+                    @Override public void onError(String requestId, ErrorInfo error) {
+                        isUploading.setValue(false);
+                        uploadError.setValue("Upload failed: " + error.getDescription());
+                    }
+                    @Override public void onReschedule(String requestId, ErrorInfo error) {}
+                }).dispatch();
+    }
+
+    private void saveToFirestore(String imageUrl, String description, String animalType, String location, boolean isUrgent, String currentUserName, String currentUserProfileImageUrl) {
+        String userId = FirebaseAuth.getInstance().getUid();
+        
+        Post newPost = new Post(currentUserName, "Just now · " + location, animalType + " Alert", description);
+        newPost.setUserId(userId);
+        newPost.setImageUrl(imageUrl);
+        newPost.setUserProfileImageUrl(currentUserProfileImageUrl);
+        newPost.setUrgent(isUrgent);
+        newPost.setTimestamp(Timestamp.now());
+
+        db.collection("posts").add(newPost)
+                .addOnSuccessListener(docRef -> {
+                    crossPostToLostAndFound(imageUrl, animalType, location, currentUserName, userId, docRef.getId());
+                })
+                .addOnFailureListener(e -> {
+                    isUploading.setValue(false);
+                    uploadError.setValue("Failed to save post: " + e.getMessage());
+                });
+    }
+
+    private void crossPostToLostAndFound(String imageUrl, String type, String location, String userName, String userId, String postId) {
+        Map<String, Object> pet = new HashMap<>();
+        pet.put("name", "Stray " + type);
+        pet.put("breed", type);
+        pet.put("location", location);
+        pet.put("status", "lost");
+        pet.put("ownerName", userName);
+        pet.put("userId", userId);
+        pet.put("imageUrl", imageUrl);
+        pet.put("linkedPostId", postId);
+        pet.put("timestamp", Timestamp.now());
+
+        db.collection("pet_listing").add(pet)
+                .addOnSuccessListener(doc -> {
+                    isUploading.setValue(false);
+                    alertSent.setValue(true);
+                })
+                .addOnFailureListener(e -> {
+                    isUploading.setValue(false);
+                    uploadError.setValue("Alert sent but cross-post failed.");
+                });
+    }
+}

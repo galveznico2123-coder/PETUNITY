@@ -22,6 +22,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
 import com.petunity.activities.EditProfileActivity;
 import com.petunity.activities.LoginActivity;
+import com.petunity.activities.MembershipActivity;
 import com.petunity.activities.MyPetsActivity;
 import com.petunity.activities.MyPostsActivity;
 import com.petunity.models.UserManager;
@@ -72,6 +73,7 @@ public class ProfileFragment extends Fragment {
         MaterialButton btnEditProfile = view.findViewById(R.id.btnEditProfile);
         MaterialButton logoutButton = view.findViewById(R.id.logoutButton);
         MaterialButton myReportsButton = view.findViewById(R.id.btnMyReports);
+        MaterialButton myMembershipButton = view.findViewById(R.id.btnMyMembership);
         View reportsClickArea = view.findViewById(R.id.reportsClickArea);
         MaterialButton btnMyPets = view.findViewById(R.id.btnMyPets);
 
@@ -96,6 +98,10 @@ public class ProfileFragment extends Fragment {
 
         if (myReportsButton != null) {
             myReportsButton.setOnClickListener(v -> startActivity(new Intent(requireContext(), MyPostsActivity.class)));
+        }
+
+        if (myMembershipButton != null) {
+            myMembershipButton.setOnClickListener(v -> startActivity(new Intent(requireContext(), MembershipActivity.class)));
         }
 
         if (reportsClickArea != null) {

@@ -15,7 +15,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
 import com.petunity.R;
-import com.petunity.activities.AddPetActivity;
+import com.petunity.activities.ReportLostPetActivity;
 import com.petunity.adapters.LostFoundPagerAdapter;
 
 public class FindFragment extends Fragment {
@@ -44,9 +44,9 @@ public class FindFragment extends Fragment {
         if (addPetFab != null) {
             addPetFab.setOnClickListener(v -> {
                 // Determine if we are on the Lost (0) or Found (1) tab
-                boolean isLostTab = viewPager != null && viewPager.getCurrentItem() == 0;
+                boolean isLostTab = (viewPager != null) && (viewPager.getCurrentItem() == 0);
                 
-                Intent intent = new Intent(requireContext(), AddPetActivity.class);
+                Intent intent = new Intent(requireContext(), ReportLostPetActivity.class);
                 intent.putExtra("is_lost", isLostTab);
                 startActivity(intent);
             });

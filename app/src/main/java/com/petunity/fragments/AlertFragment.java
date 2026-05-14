@@ -17,6 +17,7 @@ import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,10 +28,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 
-import com.cloudinary.android.MediaManager;
-import com.cloudinary.android.callback.ErrorInfo;
-import com.cloudinary.android.callback.UploadCallback;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.button.MaterialButton;
@@ -40,14 +39,12 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
-import com.petunity.models.Post;
 import com.petunity.models.UserManager;
+import com.petunity.viewmodels.AlertViewModel;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class AlertFragment extends Fragment {
     private static final String TAG = "AlertFragment";
@@ -56,10 +53,10 @@ public class AlertFragment extends Fragment {
     private View addPhotoLayout;
     private TextView locationText;
     private TextInputEditText descriptionInput;
-    private Spinner animalTypeSpinner;
-    private Spinner conditionSpinner;
+    private Spinner animalTypeSpinner, conditionSpinner;
     private CheckBox urgentAlertCheckBox;
     private MaterialButton sendButton;
+    private ProgressBar uploadProgress;
 
     private Uri selectedImageUri;
     private FirebaseFirestore db;
@@ -67,6 +64,7 @@ public class AlertFragment extends Fragment {
     private String currentUserName = "User";
     private String currentUserProfileImageUrl = null;
     private FusedLocationProviderClient fusedLocationClient;
+    private AlertViewModel viewModel;
 
     private final ActivityResultLauncher<String[]> getImage = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(),
@@ -76,13 +74,6 @@ public class AlertFragment extends Fragment {
                     photoImageView.setImageURI(uri);
                     photoImageView.setVisibility(View.VISIBLE);
                     addPhotoLayout.setVisibility(View.GONE);
-                    
-                    try {
-                        requireContext().getContentResolver().takePersistableUriPermission(uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    } catch (Exception e) {
-                        Log.d(TAG, "Not a persistable URI");
-                    }
                 }
             }
     );
@@ -99,8 +90,10 @@ public class AlertFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+        viewModel = new ViewModelProvider(this).get(AlertViewModel.class);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity());
 
+        // UI Bindings
         photoCardView = view.findViewById(R.id.photoCardView);
         photoImageView = view.findViewById(R.id.photoImageView);
         addPhotoLayout = view.findViewById(R.id.addPhotoLayout);
@@ -110,27 +103,67 @@ public class AlertFragment extends Fragment {
         conditionSpinner = view.findViewById(R.id.conditionSpinner);
         urgentAlertCheckBox = view.findViewById(R.id.urgentAlertCheckBox);
         sendButton = view.findViewById(R.id.sendButton);
+        uploadProgress = view.findViewById(R.id.uploadProgress);
 
         fetchCurrentUserInfo();
         setupSpinners();
         setupClickListeners();
+        observeViewModel();
         detectLocation();
+    }
+
+    private void observeViewModel() {
+        viewModel.getIsUploading().observe(getViewLifecycleOwner(), isUploading -> {
+            sendButton.setEnabled(!isUploading);
+            if (uploadProgress != null) uploadProgress.setVisibility(isUploading ? View.VISIBLE : View.GONE);
+            sendButton.setText(isUploading ? "Sending..." : "Send Alert");
+        });
+
+        viewModel.getUploadError().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && isAdded()) {
+                Toast.makeText(getContext(), error, Toast.LENGTH_LONG).show();
+            }
+        });
+
+        viewModel.getAlertSent().observe(getViewLifecycleOwner(), sent -> {
+            if (sent && isAdded()) {
+                Toast.makeText(getContext(), "Alert shared with the community!", Toast.LENGTH_SHORT).show();
+                clearForm();
+            }
+        });
+    }
+
+    private void setupClickListeners() {
+        photoCardView.setOnClickListener(v -> getImage.launch(new String[]{"image/*"}));
+        locationText.setOnClickListener(v -> showLocationEditDialog());
+
+        sendButton.setOnClickListener(v -> {
+            String loc = locationText.getText().toString();
+            String desc = descriptionInput.getText().toString();
+            String type = animalTypeSpinner.getSelectedItem().toString();
+            boolean urgent = urgentAlertCheckBox.isChecked();
+
+            if (selectedImageUri == null) {
+                Toast.makeText(getContext(), "Please add a photo of the pet", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (desc.isEmpty()) {
+                Toast.makeText(getContext(), "Please add a description", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            viewModel.sendAlert(selectedImageUri, desc, type, loc, urgent, currentUserName, currentUserProfileImageUrl);
+        });
     }
 
     private void detectLocation() {
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) 
                 == PackageManager.PERMISSION_GRANTED) {
-            
-            locationText.setText("Detecting location...");
             fusedLocationClient.getLastLocation().addOnSuccessListener(requireActivity(), location -> {
-                if (location != null) {
+                if (location != null && isAdded()) {
                     updateLocationUI(location);
-                } else {
-                    locationText.setText("Tap to set location");
                 }
             });
-        } else {
-            locationText.setText("Tap to set location");
         }
     }
 
@@ -138,201 +171,47 @@ public class AlertFragment extends Fragment {
         Geocoder geocoder = new Geocoder(requireContext(), Locale.getDefault());
         try {
             List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
-            if (addresses != null && !addresses.isEmpty()) {
-                String city = addresses.get(0).getLocality();
-                String state = addresses.get(0).getAdminArea();
-                if (city != null) {
-                    locationText.setText(city + (state != null ? ", " + state : ""));
-                } else {
-                    locationText.setText("Unknown Location");
-                }
+            if (addresses != null && !addresses.isEmpty() && isAdded()) {
+                locationText.setText(addresses.get(0).getLocality() + ", " + addresses.get(0).getAdminArea());
             }
-        } catch (IOException e) {
-            locationText.setText("Coordinates: " + location.getLatitude() + ", " + location.getLongitude());
-        }
+        } catch (IOException ignored) {}
     }
 
     private void fetchCurrentUserInfo() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user != null) {
             db.collection("users").document(user.getUid()).get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        if (documentSnapshot.exists()) {
-                            currentUserName = documentSnapshot.getString("name");
-                            currentUserProfileImageUrl = documentSnapshot.getString("profileImageUrl");
-                            UserManager.getInstance().setName(currentUserName);
+                    .addOnSuccessListener(doc -> {
+                        if (doc.exists() && isAdded()) {
+                            currentUserName = doc.getString("name");
+                            currentUserProfileImageUrl = doc.getString("profileImageUrl");
                         }
                     });
         }
     }
 
     private void setupSpinners() {
-        String[] animalTypes = {"Dog", "Cat", "Bird", "Rabbit", "Other"};
-        String[] conditions = {"Healthy", "Injured", "Sick", "Aggressive"};
-
-        ArrayAdapter<String> animalAdapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_spinner_dropdown_item, animalTypes);
-        ArrayAdapter<String> conditionAdapter = new ArrayAdapter<>(requireContext(),
-                android.R.layout.simple_spinner_dropdown_item, conditions);
-
-        if (animalTypeSpinner != null) animalTypeSpinner.setAdapter(animalAdapter);
-        if (conditionSpinner != null) conditionSpinner.setAdapter(conditionAdapter);
-    }
-
-    private void setupClickListeners() {
-        if (photoCardView != null) photoCardView.setOnClickListener(v -> getImage.launch(new String[]{"image/*"}));
-        if (locationText != null) locationText.setOnClickListener(v -> showLocationEditDialog());
-
-        if (sendButton != null) {
-            sendButton.setOnClickListener(v -> {
-                String loc = locationText.getText().toString();
-                if (loc.equals("Detecting location...") || loc.equals("Tap to set location") || loc.isEmpty()) {
-                    Toast.makeText(requireContext(), "Please set a location", Toast.LENGTH_SHORT).show();
-                    showLocationEditDialog();
-                    return;
-                }
-                
-                if (descriptionInput.getText().toString().isEmpty()) {
-                    Toast.makeText(requireContext(), "Please add a description", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                
-                if (selectedImageUri == null) {
-                    Toast.makeText(requireContext(), "Please add a photo", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                uploadToCloudinary();
-            });
-        }
-    }
-
-    private void uploadToCloudinary() {
-        if (mAuth.getCurrentUser() == null) {
-            Toast.makeText(requireContext(), "Please login first", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        sendButton.setEnabled(false);
-        sendButton.setText("Uploading...");
-
-        MediaManager.get().upload(selectedImageUri)
-                .unsigned("ml_defaults")
-                .callback(new UploadCallback() {
-                    @Override
-                    public void onStart(String requestId) {}
-
-                    @Override
-                    public void onProgress(String requestId, long bytes, long totalBytes) {}
-
-                    @Override
-                    public void onSuccess(String requestId, Map resultData) {
-                        String imageUrl = (String) resultData.get("secure_url");
-                        savePostToFirestore(imageUrl);
-                    }
-
-                    @Override
-                    public void onError(String requestId, ErrorInfo error) {
-                        Log.e(TAG, "Cloudinary Error: " + error.getDescription());
-                        sendButton.setEnabled(true);
-                        sendButton.setText("Send Alert");
-                        Toast.makeText(requireContext(), "Upload failed: " + error.getDescription(), Toast.LENGTH_SHORT).show();
-                    }
-
-                    @Override
-                    public void onReschedule(String requestId, ErrorInfo error) {}
-                }).dispatch();
-    }
-
-    private void savePostToFirestore(String imageUrl) {
-        String description = descriptionInput.getText().toString();
-        String animalType = animalTypeSpinner.getSelectedItem().toString();
-        String location = locationText.getText().toString();
-        String userId = mAuth.getUid();
-        boolean isUrgent = urgentAlertCheckBox != null && urgentAlertCheckBox.isChecked();
-
-        // 1. Post to Community Feed (posts collection)
-        Post newPost = new Post(
-                currentUserName,
-                "Just now · " + location,
-                animalType + " Alert",
-                description
-        );
-        newPost.setUserId(userId);
-        newPost.setImageUrl(imageUrl);
-        newPost.setUserProfileImageUrl(currentUserProfileImageUrl); // Save avatar URL
-        newPost.setSelf(true);
-        newPost.setUrgent(isUrgent);
-
-        db.collection("posts").add(newPost)
-                .addOnSuccessListener(documentReference -> {
-                    String postId = documentReference.getId();
-                    crossPostToLostAndFound(animalType, location, imageUrl, postId);
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Firestore Save Error: ", e);
-                    sendButton.setEnabled(true);
-                    sendButton.setText("Send Alert");
-                    Toast.makeText(requireContext(), "Error saving alert", Toast.LENGTH_SHORT).show();
-                });
-    }
-
-    private void crossPostToLostAndFound(String type, String location, String imageUrl, String postId) {
-        Map<String, Object> pet = new HashMap<>();
-        pet.put("name", "Stray " + type);
-        pet.put("breed", type);
-        pet.put("location", location);
-        pet.put("timeAgo", "Just now");
-        pet.put("status", "lost");
-        pet.put("ownerName", currentUserName);
-        pet.put("userId", mAuth.getUid());
-        pet.put("ownerId", mAuth.getUid());
-        pet.put("imageUrl", imageUrl);
-        pet.put("linkedPostId", postId);
+        String[] types = {"Dog", "Cat", "Bird", "Other"};
+        animalTypeSpinner.setAdapter(new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, types));
         
-        db.collection("pet_listing").add(pet)
-                .addOnSuccessListener(doc -> {
-                    Toast.makeText(requireContext(), "Alert sent and cross-posted!", Toast.LENGTH_LONG).show();
-                    clearForm();
-                    sendButton.setEnabled(true);
-                    sendButton.setText("Send Alert");
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(requireContext(), "Alert sent but cross-post failed", Toast.LENGTH_SHORT).show();
-                    clearForm();
-                    sendButton.setEnabled(true);
-                    sendButton.setText("Send Alert");
-                });
+        String[] conditions = {"Healthy", "Injured", "Aggressive"};
+        conditionSpinner.setAdapter(new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, conditions));
+    }
+
+    private void clearForm() {
+        descriptionInput.setText("");
+        urgentAlertCheckBox.setChecked(false);
+        photoImageView.setVisibility(View.GONE);
+        addPhotoLayout.setVisibility(View.VISIBLE);
+        selectedImageUri = null;
     }
 
     private void showLocationEditDialog() {
         EditText input = new EditText(requireContext());
-        String currentLoc = locationText.getText().toString();
-        if (!currentLoc.equals("Detecting location...") && !currentLoc.equals("Tap to set location")) {
-            input.setText(currentLoc);
-        }
-        
         new AlertDialog.Builder(requireContext())
-                .setTitle("Enter Location")
-                .setMessage("Where is the pet located?")
+                .setTitle("Update Location")
                 .setView(input)
-                .setPositiveButton("Set", (dialog, which) -> {
-                    String val = input.getText().toString().trim();
-                    if (!val.isEmpty()) locationText.setText(val);
-                })
-                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Set", (d, w) -> locationText.setText(input.getText().toString()))
                 .show();
-    }
-
-    private void clearForm() {
-        if (descriptionInput != null) descriptionInput.setText("");
-        if (urgentAlertCheckBox != null) urgentAlertCheckBox.setChecked(false);
-        detectLocation();
-        selectedImageUri = null;
-        if (photoImageView != null) {
-            photoImageView.setImageDrawable(null);
-            photoImageView.setVisibility(View.GONE);
-        }
-        if (addPhotoLayout != null) addPhotoLayout.setVisibility(View.VISIBLE);
     }
 }

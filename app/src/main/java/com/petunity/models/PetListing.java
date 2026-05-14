@@ -1,5 +1,6 @@
 package com.petunity.models;
 
+import com.google.firebase.Timestamp;
 import java.io.Serializable;
 
 public class PetListing implements Serializable {
@@ -7,13 +8,17 @@ public class PetListing implements Serializable {
     public String breed;
     public String location;
     public String timeAgo;
-    public String status; // Using String "lost" or "found"
+    public String status; 
     public String ownerName;
-    public String userId; // Unified field name
+    public String userId; 
     public String imageUrl;
-    public String linkedPostId; // Added to link with Alert posts
+    public String linkedPostId; 
+    public Timestamp timestamp;
+    public String description; // Added for detailed report
+    public String reward;      // Added for lost pet reports
+    public String contactPhone; // Added for direct contact
 
-    public PetListing() {} // Required for Firestore
+    public PetListing() {} 
 
     public PetListing(String name, String breed, String location, String timeAgo, String status, String ownerName, String userId, String imageUrl) {
         this.name = name;
@@ -24,6 +29,7 @@ public class PetListing implements Serializable {
         this.ownerName = ownerName;
         this.userId = userId;
         this.imageUrl = imageUrl;
+        this.timestamp = Timestamp.now();
     }
 
     public String getName() { return name; }
@@ -38,4 +44,12 @@ public class PetListing implements Serializable {
     public String getAvatarUrl() { return imageUrl; }
     public String getLinkedPostId() { return linkedPostId; }
     public void setLinkedPostId(String linkedPostId) { this.linkedPostId = linkedPostId; }
+    public Timestamp getTimestamp() { return timestamp; }
+    public void setTimestamp(Timestamp timestamp) { this.timestamp = timestamp; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public String getReward() { return reward; }
+    public void setReward(String reward) { this.reward = reward; }
+    public String getContactPhone() { return contactPhone; }
+    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
 }

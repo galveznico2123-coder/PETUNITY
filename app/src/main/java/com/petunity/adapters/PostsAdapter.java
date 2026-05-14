@@ -89,11 +89,13 @@ public class PostsAdapter extends RecyclerView.Adapter<PostsAdapter.PostViewHold
                 binding.userAvatar.setImageResource(R.drawable.ic_user);
             }
 
-            String timeStr = post.getTimeLabel();
+            // Display formatted date instead of static text
             if (post.getTimestamp() != null) {
-                timeStr = dateFormat.format(post.getTimestamp().toDate());
+                binding.timeText.setText(dateFormat.format(post.getTimestamp().toDate()));
+            } else {
+                binding.timeText.setText(post.getTimeLabel());
             }
-            binding.timeText.setText(timeStr);
+
             binding.postContentText.setText(post.getContent());
 
             if (post.getImageUrl() != null && !post.getImageUrl().isEmpty()) {

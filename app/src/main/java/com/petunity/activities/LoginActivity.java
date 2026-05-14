@@ -7,8 +7,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -25,8 +23,6 @@ import androidx.credentials.exceptions.GetCredentialException;
 
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -34,6 +30,7 @@ import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.petunity.R;
+import com.petunity.databinding.ActivityLoginBinding;
 import com.petunity.models.UserManager;
 
 import java.util.HashMap;
@@ -44,31 +41,21 @@ public class LoginActivity extends AppCompatActivity {
     private static final String TYPE_GOOGLE_ID_TOKEN_CREDENTIAL = "com.google.android.libraries.identity.googleid.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL";
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
+    private ActivityLoginBinding binding;
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private CredentialManager credentialManager;
-    private TextInputEditText emailInput, passwordInput;
-    private ProgressBar loginProgressBar;
-    private MaterialButton loginButton, googleButton;
-    private TextView signUpText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_login);
+        binding = ActivityLoginBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         credentialManager = CredentialManager.create(this);
-
-        // Initialize views
-        emailInput = findViewById(R.id.emailInput);
-        passwordInput = findViewById(R.id.passwordInput);
-        loginButton = findViewById(R.id.loginButton);
-        signUpText = findViewById(R.id.signUpText);
-        googleButton = findViewById(R.id.googleButton);
-        loginProgressBar = findViewById(R.id.loginProgressBar);
 
         requestNotificationPermission();
 
@@ -78,36 +65,30 @@ public class LoginActivity extends AppCompatActivity {
 
     private void setupClickListeners() {
         // Email/Password login
-        if (loginButton != null) {
-            loginButton.setOnClickListener(v -> performEmailLogin());
-        }
+        binding.loginButton.setOnClickListener(v -> performEmailLogin());
 
         // Sign up navigation
-        if (signUpText != null) {
-            signUpText.setOnClickListener(v ->
-                    startActivity(new Intent(LoginActivity.this, SignUpActivity.class))
-            );
-        }
+        binding.signUpText.setOnClickListener(v ->
+                startActivity(new Intent(LoginActivity.this, SignUpActivity.class))
+        );
 
         // Google sign in
-        if (googleButton != null) {
-            googleButton.setOnClickListener(v -> performGoogleLogin());
-        }
+        binding.googleButton.setOnClickListener(v -> performGoogleLogin());
     }
 
     private void performEmailLogin() {
-        String email = emailInput.getText().toString().trim();
-        String password = passwordInput.getText().toString().trim();
+        String email = binding.emailInput.getText() != null ? binding.emailInput.getText().toString().trim() : "";
+        String password = binding.passwordInput.getText() != null ? binding.passwordInput.getText().toString().trim() : "";
 
         if (email.isEmpty()) {
-            emailInput.setError("Email is required");
-            emailInput.requestFocus();
+            binding.emailInput.setError("Email is required");
+            binding.emailInput.requestFocus();
             return;
         }
 
         if (password.isEmpty()) {
-            passwordInput.setError("Password is required");
-            passwordInput.requestFocus();
+            binding.passwordInput.setError("Password is required");
+            binding.passwordInput.requestFocus();
             return;
         }
 
@@ -121,20 +102,16 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        if (loginProgressBar != null && loginButton != null && googleButton != null) {
-            if (loading) {
-                // Show loading state
-                loginButton.setEnabled(false);
-                googleButton.setEnabled(false);
-                loginButton.setText("");  // Clear button text
-                loginProgressBar.setVisibility(View.VISIBLE);
-            } else {
-                // Hide loading state
-                loginButton.setEnabled(true);
-                googleButton.setEnabled(true);
-                loginButton.setText("Sign In");
-                loginProgressBar.setVisibility(View.GONE);
-            }
+        if (loading) {
+            binding.loginButton.setEnabled(false);
+            binding.googleButton.setEnabled(false);
+            binding.loginButton.setText("");
+            binding.loginProgressBar.setVisibility(View.VISIBLE);
+        } else {
+            binding.loginButton.setEnabled(true);
+            binding.googleButton.setEnabled(true);
+            binding.loginButton.setText("Sign In");
+            binding.loginProgressBar.setVisibility(View.GONE);
         }
     }
 
@@ -182,7 +159,6 @@ public class LoginActivity extends AppCompatActivity {
                         if (name != null) UserManager.getInstance().setName(name);
                         if (membershipType != null) UserManager.getInstance().setMembershipType(membershipType);
 
-                        // Update FCM token and subscriptions
                         updateFcmToken(user.getUid());
                     }
                     updateUI(user);
@@ -191,7 +167,7 @@ public class LoginActivity extends AppCompatActivity {
                     setLoading(false);
                     Log.e(TAG, "Error fetching user data", e);
                     Toast.makeText(this, "Error loading user data", Toast.LENGTH_SHORT).show();
-                    updateUI(user); // Still try to update UI even if fetch fails
+                    updateUI(user);
                 });
     }
 
@@ -209,13 +185,8 @@ public class LoginActivity extends AppCompatActivity {
                     }
 
                     // Subscribe to notification topics
-                    FirebaseMessaging.getInstance().subscribeToTopic("alerts")
-                            .addOnSuccessListener(v -> Log.d(TAG, "Subscribed to 'alerts' topic"))
-                            .addOnFailureListener(e -> Log.e(TAG, "Failed to subscribe to alerts", e));
-
-                    FirebaseMessaging.getInstance().subscribeToTopic("urgent_alerts")
-                            .addOnSuccessListener(v -> Log.d(TAG, "Subscribed to 'urgent_alerts' topic"))
-                            .addOnFailureListener(e -> Log.e(TAG, "Failed to subscribe to urgent_alerts", e));
+                    FirebaseMessaging.getInstance().subscribeToTopic("alerts");
+                    FirebaseMessaging.getInstance().subscribeToTopic("urgent_alerts");
                 })
                 .addOnFailureListener(e -> Log.e(TAG, "Failed to get FCM token", e));
     }
@@ -241,9 +212,7 @@ public class LoginActivity extends AppCompatActivity {
                     public void onError(@NonNull GetCredentialException e) {
                         setLoading(false);
                         Log.e(TAG, "Google Sign In Error", e);
-                        Toast.makeText(LoginActivity.this,
-                                "Google Sign In Failed: " + e.getMessage(),
-                                Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "Google Sign In Failed", Toast.LENGTH_SHORT).show();
                     }
                 }
         );
@@ -261,16 +230,11 @@ public class LoginActivity extends AppCompatActivity {
             } catch (Exception e) {
                 setLoading(false);
                 Log.e(TAG, "Error handling Google Sign In", e);
-                Toast.makeText(LoginActivity.this,
-                        "Google Sign In Failed: Authentication error",
-                        Toast.LENGTH_SHORT).show();
+                Toast.makeText(LoginActivity.this, "Authentication error", Toast.LENGTH_SHORT).show();
             }
         } else {
             setLoading(false);
-            Log.e(TAG, "Unsupported credential type: " + credential.getType());
-            Toast.makeText(LoginActivity.this,
-                    "Unsupported login method",
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(LoginActivity.this, "Unsupported login method", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -283,11 +247,7 @@ public class LoginActivity extends AppCompatActivity {
                         checkIfUserExistsAndNavigate(user);
                     } else {
                         setLoading(false);
-                        String errorMessage = "Google Sign In Failed: ";
-                        if (task.getException() != null) {
-                            errorMessage += task.getException().getMessage();
-                        }
-                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                        Toast.makeText(LoginActivity.this, "Google Sign In Failed", Toast.LENGTH_LONG).show();
                         Log.e(TAG, "Google auth failed", task.getException());
                     }
                 });
@@ -306,7 +266,6 @@ public class LoginActivity extends AppCompatActivity {
         db.collection("users").document(userId).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (!documentSnapshot.exists()) {
-                        // Create new user document for Google sign-in
                         Map<String, Object> userData = new HashMap<>();
                         userData.put("email", email);
                         userData.put("name", name != null ? name : "");
@@ -316,7 +275,6 @@ public class LoginActivity extends AppCompatActivity {
                         db.collection("users").document(userId)
                                 .set(userData)
                                 .addOnSuccessListener(aVoid -> {
-                                    Log.d(TAG, "New user created for Google sign-in");
                                     UserManager.getInstance().setName(name);
                                     UserManager.getInstance().setMembershipType("standard");
                                     updateFcmToken(userId);
@@ -324,12 +282,9 @@ public class LoginActivity extends AppCompatActivity {
                                 })
                                 .addOnFailureListener(e -> {
                                     setLoading(false);
-                                    Log.e(TAG, "Failed to create user document", e);
-                                    Toast.makeText(this, "Failed to create user profile", Toast.LENGTH_SHORT).show();
-                                    updateUI(user); // Still try to continue
+                                    updateUI(user);
                                 });
                     } else {
-                        // Existing user
                         String existingName = documentSnapshot.getString("name");
                         String membershipType = documentSnapshot.getString("membershipType");
 
@@ -342,7 +297,6 @@ public class LoginActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     setLoading(false);
-                    Log.e(TAG, "Failed to check user existence", e);
                     updateUI(user);
                 });
     }
@@ -365,7 +319,6 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Ensure loading is turned off if activity is destroyed
-        setLoading(false);
+        binding = null;
     }
 }

@@ -9,7 +9,8 @@ public class Post implements Serializable {
     private String id;
     private String userId;
     private String userName;
-    private String userProfileImageUrl; // Added this field
+    private String userProfileImageUrl;
+    private String userMembershipLevel; // Added field for rank badge
     private String timeLabel; 
     private Timestamp timestamp;
     private String title;
@@ -21,7 +22,7 @@ public class Post implements Serializable {
     private String sourcePostId; 
     private boolean isPrivate; 
     private List<String> participants; 
-    private boolean saved; // Renamed for Firestore compatibility
+    private boolean saved;
 
     public Post() {} 
 
@@ -42,6 +43,8 @@ public class Post implements Serializable {
     public void setUserName(String userName) { this.userName = userName; }
     public String getUserProfileImageUrl() { return userProfileImageUrl; }
     public void setUserProfileImageUrl(String userProfileImageUrl) { this.userProfileImageUrl = userProfileImageUrl; }
+    public String getUserMembershipLevel() { return userMembershipLevel; }
+    public void setUserMembershipLevel(String userMembershipLevel) { this.userMembershipLevel = userMembershipLevel; }
     public String getTimeLabel() { return timeLabel; }
     public void setTimeLabel(String timeLabel) { this.timeLabel = timeLabel; }
     public Timestamp getTimestamp() { return timestamp; }

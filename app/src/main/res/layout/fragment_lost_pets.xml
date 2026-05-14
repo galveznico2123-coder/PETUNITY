@@ -10,4 +10,20 @@
         android:padding="16dp"
         android:clipToPadding="false" />
 
+    <ProgressBar
+        android:id="@+id/loadingProgressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/emptyStateText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="No lost pets reported yet."
+        android:textColor="@color/text_secondary"
+        android:visibility="gone" />
+
 </FrameLayout>

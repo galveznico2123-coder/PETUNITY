@@ -12,12 +12,15 @@ import com.petunity.R;
 import com.petunity.databinding.ItemPetListingBinding;
 import com.petunity.models.PetListing;
 
+import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.Locale;
 
 public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetViewHolder> {
     private final List<PetListing> pets;
     private final OnContactClickListener listener;
     private final String currentUserId;
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
 
     public interface OnContactClickListener {
         void onContactClick(PetListing pet);
@@ -62,7 +65,13 @@ public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetV
             binding.petNameText.setText(pet.getName());
             binding.petBreedText.setText(pet.getBreed());
             binding.petLocationText.setText(pet.getLocation());
-            binding.petTimeText.setText(pet.getTimeAgo());
+            
+            // Display actual date instead of "just now"
+            if (pet.getTimestamp() != null) {
+                binding.petTimeText.setText(dateFormat.format(pet.getTimestamp().toDate()));
+            } else {
+                binding.petTimeText.setText(pet.getTimeAgo());
+            }
 
             // Load image via Glide from Cloudinary URL
             if (pet.getImageUrl() != null && !pet.getImageUrl().isEmpty()) {

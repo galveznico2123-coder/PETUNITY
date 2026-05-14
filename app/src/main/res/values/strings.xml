@@ -105,6 +105,6 @@
     <string name="no_pet_detected">No Pet Detected</string>
     <string name="finalizing_persona">Finalizing Persona...</string>
 
-    <!-- TODO: Replace with your actual Web Client ID from Firebase Console -->
-    <string name="default_web_client_id">980498342431-pa30p9887m32d56mshjvef88o5f0m0id.apps.googleusercontent.com</string>
+    <!-- Correct Web Client ID from google-services.json -->
+    <string name="default_web_client_id">980498342431-58uuvgke4t99q8cuhifvcte26kqlh23p.apps.googleusercontent.com</string>
 </resources>

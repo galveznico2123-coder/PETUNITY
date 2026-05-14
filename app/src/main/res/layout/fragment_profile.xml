@@ -245,6 +245,19 @@
                         app:iconPadding="16dp" />
 
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnMyMembership"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:text="@string/my_membership"
+                        android:gravity="start|center_vertical"
+                        android:textColor="@color/text_primary"
+                        android:textAllCaps="false"
+                        app:icon="@drawable/ic_logo"
+                        app:iconSize="20dp"
+                        app:iconPadding="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnMyPets"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="match_parent"

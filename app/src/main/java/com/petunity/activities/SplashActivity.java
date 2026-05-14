@@ -14,10 +14,12 @@ public class SplashActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Show the splash layout with the looping Lottie animation immediately
+        // Load the looping animation layout immediately
+        // The background is set to #FFE0B2 in XML to match the system splash
         setContentView(R.layout.activity_splash);
 
-        // Stay on the splash screen for 3 seconds before moving to Login
+        // Transition to LoginActivity after 3 seconds as requested
+        // Even if the user is already logged in, we show the Login screen first
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (isFinishing()) return;
             

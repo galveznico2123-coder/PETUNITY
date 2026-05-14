@@ -6,10 +6,14 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -19,13 +23,13 @@ import androidx.core.app.NotificationCompat;
 import androidx.fragment.app.Fragment;
 
 import com.bumptech.glide.Glide;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.petunity.R;
+import com.petunity.databinding.ActivityMainBinding;
 import com.petunity.fragments.AlertFragment;
 import com.petunity.fragments.ChatFragment;
 import com.petunity.fragments.FindFragment;
@@ -38,18 +42,23 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
-    private BottomNavigationView bottomNavigationView;
-    private ImageView profileIcon;
+    
+    // Intent Keys
+    public static final String EXTRA_OPEN_FRAGMENT = "open_fragment";
+    public static final String FRAGMENT_CHAT = "chat";
+    public static final String FRAGMENT_ALERT = "alert";
+    
+    // Notification Constants
+    private static final String CHANNEL_ID_URGENT = "urgent_alerts";
+
+    private ActivityMainBinding binding;
     private ListenerRegistration urgentAlertListener;
+    private ConnectivityManager.NetworkCallback networkCallback;
     private long sessionStartTime;
 
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), (Map<String, Boolean> result) -> {
-                Boolean notificationGranted = false;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationGranted = result.getOrDefault(Manifest.permission.POST_NOTIFICATIONS, false);
-                }
-                if (notificationGranted != null && notificationGranted) {
+                if (Boolean.TRUE.equals(result.get(Manifest.permission.POST_NOTIFICATIONS))) {
                     Log.d(TAG, "Notification permission granted");
                 }
             });
@@ -57,30 +66,27 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        
+        // Initialize View Binding
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
         
         sessionStartTime = System.currentTimeMillis();
         checkPermissions();
+        setupNetworkListener();
 
-        bottomNavigationView = findViewById(R.id.bottomNavigationView);
-        bottomNavigationView.setItemIconTintList(null);
-        MaterialCardView profileIconCard = findViewById(R.id.profileIconCard);
-        profileIcon = findViewById(R.id.profileIcon);
+        // Setup UI Components via binding
+        binding.bottomNavigationView.setItemIconTintList(null);
 
         handleIntent(getIntent());
         loadProfileImage();
 
-        profileIconCard.setOnClickListener(v -> {
+        binding.profileIconCard.setOnClickListener(v -> {
             loadFragment(new ProfileFragment());
-            // Uncheck all navigation items since Profile isn't in the bottom bar
-            bottomNavigationView.getMenu().setGroupCheckable(0, true, false);
-            for (int i = 0; i < bottomNavigationView.getMenu().size(); i++) {
-                bottomNavigationView.getMenu().getItem(i).setChecked(false);
-            }
-            bottomNavigationView.getMenu().setGroupCheckable(0, true, true);
+            uncheckBottomNav();
         });
 
-        bottomNavigationView.setOnItemSelectedListener(item -> {
+        binding.bottomNavigationView.setOnItemSelectedListener(item -> {
             Fragment selectedFragment;
             int itemId = item.getItemId();
             
@@ -105,7 +111,48 @@ public class MainActivity extends AppCompatActivity {
         listenForUrgentAlerts();
     }
 
+    private void setupNetworkListener() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+
+        NetworkRequest request = new NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build();
+        
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onLost(@NonNull Network network) {
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        Snackbar.make(binding.getRoot(), "Network connection lost", Snackbar.LENGTH_INDEFINITE)
+                                .setAction("Dismiss", v -> {})
+                                .show();
+                    }
+                });
+            }
+
+            @Override
+            public void onAvailable(@NonNull Network network) {
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        Toast.makeText(MainActivity.this, "Back online!", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        };
+        cm.registerNetworkCallback(request, networkCallback);
+    }
+
+    private void uncheckBottomNav() {
+        binding.bottomNavigationView.getMenu().setGroupCheckable(0, true, false);
+        for (int i = 0; i < binding.bottomNavigationView.getMenu().size(); i++) {
+            binding.bottomNavigationView.getMenu().getItem(i).setChecked(false);
+        }
+        binding.bottomNavigationView.getMenu().setGroupCheckable(0, true, true);
+    }
+
     private void loadFragment(Fragment fragment) {
+        if (isFinishing() || fragment == null) return;
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.nav_host_fragment, fragment)
                 .commit();
@@ -113,16 +160,22 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadProfileImage() {
         String uid = FirebaseAuth.getInstance().getUid();
-        if (uid != null && profileIcon != null) {
+        if (uid != null) {
             FirebaseFirestore.getInstance().collection("users").document(uid).get()
                 .addOnSuccessListener(doc -> {
+                    if (isFinishing()) return;
                     String url = doc.getString("profileImageUrl");
                     if (url != null && !url.isEmpty()) {
-                        Glide.with(this).load(url).circleCrop().placeholder(R.drawable.ic_user).into(profileIcon);
+                        Glide.with(this)
+                                .load(url)
+                                .circleCrop()
+                                .placeholder(R.drawable.ic_user)
+                                .into(binding.profileIcon);
                     } else {
-                        profileIcon.setImageResource(R.drawable.ic_user);
+                        binding.profileIcon.setImageResource(R.drawable.ic_user);
                     }
-                });
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Error loading profile image", e));
         }
     }
 
@@ -142,7 +195,6 @@ public class MainActivity extends AppCompatActivity {
                         for (DocumentChange dc : value.getDocumentChanges()) {
                             if (dc.getType() == DocumentChange.Type.ADDED) {
                                 Post post = dc.getDocument().toObject(Post.class);
-                                
                                 if (post != null && post.getTimestamp() != null && 
                                     post.getTimestamp().toDate().getTime() > sessionStartTime &&
                                     post.getUserId() != null && 
@@ -156,19 +208,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showUrgentNotification(Post post) {
-        String channelId = "urgent_alerts";
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        if (notificationManager != null) {
-            NotificationChannel channel = new NotificationChannel(channelId, "Urgent Alerts", NotificationManager.IMPORTANCE_HIGH);
+        if (notificationManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID_URGENT, "Urgent Alerts", NotificationManager.IMPORTANCE_HIGH);
             notificationManager.createNotificationChannel(channel);
         }
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_URGENT)
                 .setSmallIcon(R.drawable.petunity_logo)
                 .setContentTitle("URGENT: " + post.getTitle())
                 .setContentText(post.getUserName() + " needs help: " + post.getContent())
@@ -184,15 +236,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         handleIntent(intent);
     }
 
     private void handleIntent(Intent intent) {
-        if (intent != null && "chat".equals(intent.getStringExtra("open_fragment"))) {
+        if (intent == null) return;
+        String openFragment = intent.getStringExtra(EXTRA_OPEN_FRAGMENT);
+        
+        if (FRAGMENT_CHAT.equals(openFragment)) {
             loadFragment(new ChatFragment());
-            if (bottomNavigationView != null) {
-                bottomNavigationView.setSelectedItemId(R.id.navigation_chat);
-            }
+            binding.bottomNavigationView.setSelectedItemId(R.id.navigation_chat);
+        } else if (FRAGMENT_ALERT.equals(openFragment)) {
+            loadFragment(new AlertFragment());
+            binding.bottomNavigationView.setSelectedItemId(R.id.navigation_alert);
         } else if (getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment) == null) {
             loadFragment(new HomeFragment());
         }
@@ -218,8 +275,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (urgentAlertListener != null) {
-            urgentAlertListener.remove();
+        if (urgentAlertListener != null) urgentAlertListener.remove();
+        if (networkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) cm.unregisterNetworkCallback(networkCallback);
         }
+        binding = null;
     }
 }

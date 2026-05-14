@@ -1,6 +1,7 @@
 package com.petunity.fragments;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -9,24 +10,28 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
 import com.petunity.R;
+import com.petunity.activities.MembershipActivity;
 import com.petunity.adapters.PostsAdapter;
 import com.petunity.models.Post;
 import com.petunity.models.UserManager;
+import com.petunity.viewmodels.HomeViewModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +44,12 @@ public class HomeFragment extends Fragment {
     private FirebaseAuth mAuth;
     private String currentUserProfileImageUrl;
     
-    private TextView helpedCountText, activeCountText, nearYouCountText, welcomeUserText;
+    private TextView helpedCountText, activeCountText, nearYouCountText, welcomeUserText, userRankText, pointsToNextLevel;
     private ImageView homeProfileImage;
+    private ProgressBar loadingProgressBar;
+    private LinearProgressIndicator miniMembershipProgress;
+    private TextView emptyStateText;
+    private HomeViewModel viewModel;
 
     @Nullable
     @Override
@@ -54,16 +63,22 @@ public class HomeFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+        viewModel = new ViewModelProvider(this).get(HomeViewModel.class);
         
         welcomeUserText = view.findViewById(R.id.welcomeUserText);
+        userRankText = view.findViewById(R.id.userRankText);
         homeProfileImage = view.findViewById(R.id.homeProfileImage);
         helpedCountText = view.findViewById(R.id.helpedCountText);
         activeCountText = view.findViewById(R.id.activeCountText);
         nearYouCountText = view.findViewById(R.id.nearYouCountText);
+        loadingProgressBar = view.findViewById(R.id.loadingProgressBar);
+        emptyStateText = view.findViewById(R.id.emptyStateText);
+        miniMembershipProgress = view.findViewById(R.id.miniMembershipProgress);
+        pointsToNextLevel = view.findViewById(R.id.pointsToNextLevel);
         
-        if (welcomeUserText != null) {
-            String name = UserManager.getInstance().getName();
-            welcomeUserText.setText(name != null ? name + "!" : "Hero!");
+        View membershipCard = view.findViewById(R.id.membershipMiniCard);
+        if (membershipCard != null) {
+            membershipCard.setOnClickListener(v -> startActivity(new Intent(requireContext(), MembershipActivity.class)));
         }
 
         RecyclerView recyclerView = view.findViewById(R.id.postsRecyclerView);
@@ -73,19 +88,82 @@ public class HomeFragment extends Fragment {
         recyclerView.setAdapter(adapter);
 
         FloatingActionButton addPostFab = view.findViewById(R.id.addPostFab);
-        addPostFab.setOnClickListener(v -> showCreatePostDialog());
+        if (addPostFab != null) {
+            addPostFab.setOnClickListener(v -> showCreatePostDialog());
+        }
 
+        updateMembershipUI();
+        observeViewModel();
         fetchCurrentUserProfileImage();
-        fetchPosts();
         fetchStats();
+
+        String currentUid = mAuth.getUid();
+        if (currentUid != null) {
+            viewModel.fetchPosts(currentUid);
+        }
+    }
+
+    private void updateMembershipUI() {
+        UserManager user = UserManager.getInstance();
+        if (welcomeUserText != null) {
+            String name = user.getName();
+            welcomeUserText.setText(name != null ? "Hi, " + name + "!" : "Welcome Hero!");
+        }
+        if (userRankText != null) {
+            userRankText.setText(user.getMembershipLevelName());
+        }
+        
+        double helped = user.getPetsHelped();
+        int currentPoints = (int) Math.ceil(helped);
+        int nextThreshold = 6;
+        String nextEmoji = "🐶";
+        
+        if (currentPoints >= 6 && currentPoints < 16) { nextThreshold = 16; nextEmoji = "🛡️"; }
+        else if (currentPoints >= 16 && currentPoints < 31) { nextThreshold = 31; nextEmoji = "🏆"; }
+        else if (currentPoints >= 31 && currentPoints < 51) { nextThreshold = 51; nextEmoji = "🦸"; }
+        else if (currentPoints >= 51) { nextThreshold = 100; nextEmoji = "🔥"; }
+
+        if (miniMembershipProgress != null) {
+            int percent = (int) ((helped / nextThreshold) * 100);
+            miniMembershipProgress.setProgress(percent);
+        }
+        if (pointsToNextLevel != null) {
+            int needed = nextThreshold - currentPoints;
+            pointsToNextLevel.setText(needed > 0 ? needed + " pts to " + nextEmoji : "Max Rank!");
+        }
+    }
+
+    private void observeViewModel() {
+        viewModel.getPosts().observe(getViewLifecycleOwner(), posts -> {
+            postList.clear();
+            postList.addAll(posts);
+            adapter.notifyDataSetChanged();
+            
+            if (emptyStateText != null) {
+                emptyStateText.setVisibility(posts.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+        });
+
+        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
+            if (loadingProgressBar != null) {
+                loadingProgressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+            }
+        });
+
+        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && isAdded()) {
+                Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void fetchCurrentUserProfileImage() {
         String uid = mAuth.getUid();
         if (uid != null) {
             db.collection("users").document(uid).get().addOnSuccessListener(documentSnapshot -> {
+                if (!isAdded()) return;
                 currentUserProfileImageUrl = documentSnapshot.getString("profileImageUrl");
-                if (currentUserProfileImageUrl != null && !currentUserProfileImageUrl.isEmpty() && isAdded()) {
+                if (currentUserProfileImageUrl != null && !currentUserProfileImageUrl.isEmpty()) {
                     Glide.with(this).load(currentUserProfileImageUrl).circleCrop().placeholder(R.drawable.ic_user).into(homeProfileImage);
                 } else if (homeProfileImage != null) {
                     homeProfileImage.setImageResource(R.drawable.ic_user);
@@ -96,18 +174,21 @@ public class HomeFragment extends Fragment {
 
     private void fetchStats() {
         db.collection("reunions").addSnapshotListener((value, error) -> {
+            if (!isAdded()) return;
             if (value != null && helpedCountText != null) {
                 helpedCountText.setText(String.valueOf(value.size()));
             }
         });
 
         db.collection("posts").addSnapshotListener((value, error) -> {
+            if (!isAdded()) return;
             if (value != null && activeCountText != null) {
                 activeCountText.setText(String.valueOf(value.size()));
             }
         });
 
         db.collection("pet_listing").addSnapshotListener((value, error) -> {
+            if (!isAdded()) return;
             if (value != null && nearYouCountText != null) {
                 nearYouCountText.setText(String.valueOf(value.size()));
             }
@@ -115,6 +196,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void showCreatePostDialog() {
+        if (!isAdded()) return;
         View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_post, null);
         EditText titleInput = dialogView.findViewById(R.id.postTitleInput);
         EditText contentInput = dialogView.findViewById(R.id.postContentInput);
@@ -137,51 +219,27 @@ public class HomeFragment extends Fragment {
     }
 
     private void savePostToFirebase(String title, String content, boolean isUrgent) {
-        String userId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : "anonymous";
+        if (mAuth.getCurrentUser() == null) return;
+        
+        String userId = mAuth.getCurrentUser().getUid();
         String userName = UserManager.getInstance().getName();
 
         Post newPost = new Post(userName, "Just now", title, content);
         newPost.setUserId(userId);
-        newPost.setUserProfileImageUrl(currentUserProfileImageUrl); // Save profile image URL with post
+        newPost.setUserProfileImageUrl(currentUserProfileImageUrl);
         newPost.setUrgent(isUrgent);
-        newPost.setPrivate(false); // Community posts are public by default
+        newPost.setPrivate(false);
 
         db.collection("posts").add(newPost)
                 .addOnSuccessListener(documentReference -> {
-                    Toast.makeText(requireContext(), "Posted successfully!", Toast.LENGTH_SHORT).show();
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), "Posted successfully!", Toast.LENGTH_SHORT).show();
+                        updateMembershipUI(); // Refresh UI after posting
+                    }
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(requireContext(), "Failed to post", Toast.LENGTH_SHORT).show();
-                });
-    }
-
-    private void fetchPosts() {
-        String currentUid = mAuth.getUid();
-        db.collection("posts")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) {
-                        Log.e(TAG, "Listen failed.", error);
-                        return;
-                    }
-
-                    if (value != null) {
-                        postList.clear();
-                        for (com.google.firebase.firestore.DocumentSnapshot doc : value.getDocuments()) {
-                            Post post = doc.toObject(Post.class);
-                            if (post != null) {
-                                post.setId(doc.getId());
-                                
-                                // Privacy Logic: 
-                                // 1. Show if post is NOT private
-                                // 2. OR show if I am one of the participants in this private post
-                                if (!post.isPrivate() || 
-                                   (post.getParticipants() != null && post.getParticipants().contains(currentUid))) {
-                                    postList.add(post);
-                                }
-                            }
-                        }
-                        adapter.notifyDataSetChanged();
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), "Failed to post", Toast.LENGTH_SHORT).show();
                     }
                 });
     }

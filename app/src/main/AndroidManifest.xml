@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <queries>
+        <package android:name="com.google.android.gms" />
+    </queries>
+
     <application
         android:name=".PetUnityApplication"
         android:allowBackup="true"
@@ -79,10 +83,21 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".activities.ReportLostPetActivity"
+            android:exported="false"
+            android:label="Report Pet Incident"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".activities.EditProfileActivity"
             android:exported="false"
             android:label="Edit Profile"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".activities.MembershipActivity"
+            android:exported="false"
+            android:label="My Membership" />
 
         <service
             android:name=".services.MyFirebaseMessagingService"
