@@ -49,7 +49,7 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesAdapter.Conver
         }
     }
 
-    static class ConversationViewHolder extends RecyclerView.ViewHolder {
+    public static class ConversationViewHolder extends RecyclerView.ViewHolder {
         private final ItemConversationBinding binding;
 
         public ConversationViewHolder(@NonNull ItemConversationBinding binding) {
@@ -68,6 +68,8 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesAdapter.Conver
                     .circleCrop()
                     .placeholder(R.drawable.ic_user)
                     .into(binding.avatarImage);
+
+            binding.onlineIndicator.setVisibility(conversation.isOnline() ? android.view.View.VISIBLE : android.view.View.GONE);
 
             binding.getRoot().setOnClickListener(v -> {
                 Intent intent = new Intent(v.getContext(), ChatActivity.class);

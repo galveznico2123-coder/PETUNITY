@@ -110,7 +110,7 @@ public class LoginActivity extends AppCompatActivity {
         } else {
             binding.loginButton.setEnabled(true);
             binding.googleButton.setEnabled(true);
-            binding.loginButton.setText("Sign In");
+            binding.loginButton.setText(R.string.sign_in);
             binding.loginProgressBar.setVisibility(View.GONE);
         }
     }

@@ -2,6 +2,7 @@ package com.petunity.models;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.Exclude;
+import com.petunity.utils.TimeUtils;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -19,8 +20,12 @@ public class Conversation {
     private Map<String, String> names;
     private String lastSenderId;
     private String lastSenderName;
+    private boolean online;
 
     public Conversation() {}
+
+    public boolean isOnline() { return online; }
+    public void setOnline(boolean online) { this.online = online; }
 
     public String getOtherUserId() { return otherUserId; }
     public void setOtherUserId(String otherUserId) { this.otherUserId = otherUserId; }
@@ -35,7 +40,7 @@ public class Conversation {
         if (time != null) return time;
         Timestamp ts = getLastTimestampAsDate();
         if (ts != null) {
-            return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(ts.toDate());
+            return TimeUtils.getTimeAgo(ts.toDate());
         }
         return "";
     }
