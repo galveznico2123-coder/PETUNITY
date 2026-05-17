@@ -36,8 +36,8 @@ import com.petunity.fragments.FindFragment;
 import com.petunity.fragments.HomeFragment;
 import com.petunity.fragments.PlayFragment;
 import com.petunity.fragments.ProfileFragment;
+import com.petunity.models.Conversation;
 import com.petunity.models.Post;
-import com.petunity.utils.PresenceManager;
 
 import java.util.Map;
 
@@ -51,9 +51,11 @@ public class MainActivity extends AppCompatActivity {
     
     // Notification Constants
     private static final String CHANNEL_ID_URGENT = "urgent_alerts";
+    private static final String CHANNEL_ID_CHAT = "chat_notifications";
 
     private ActivityMainBinding binding;
     private ListenerRegistration urgentAlertListener;
+    private ListenerRegistration messageListener;
     private ConnectivityManager.NetworkCallback networkCallback;
     private long sessionStartTime;
 
@@ -110,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         listenForUrgentAlerts();
+        listenForNewMessages();
     }
 
     private void setupNetworkListener() {
@@ -208,6 +211,42 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
+    private void listenForNewMessages() {
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String currentUserId = FirebaseAuth.getInstance().getUid();
+        if (currentUserId == null) return;
+
+        messageListener = db.collection("conversations")
+                .whereArrayContains("participants", currentUserId)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Message Listener failed.", error);
+                        return;
+                    }
+
+                    if (value != null) {
+                        for (DocumentChange dc : value.getDocumentChanges()) {
+                            if (dc.getType() == DocumentChange.Type.MODIFIED || dc.getType() == DocumentChange.Type.ADDED) {
+                                Conversation conv = dc.getDocument().toObject(Conversation.class);
+                                
+                                // Show notification if:
+                                // 1. Last sender is not me
+                                // 2. Message is new (timestamp > sessionStartTime)
+                                // 3. We are not currently chatting with this person
+                                if (conv != null && conv.getLastSenderId() != null && 
+                                    !conv.getLastSenderId().equals(currentUserId) &&
+                                    conv.getLastTimestampAsDate() != null &&
+                                    conv.getLastTimestampAsDate().toDate().getTime() > sessionStartTime &&
+                                    !conv.getLastSenderId().equals(ChatActivity.activeChatUserId)) {
+                                    
+                                    showChatNotification(conv);
+                                }
+                            }
+                        }
+                    }
+                });
+    }
+
     private void showUrgentNotification(Post post) {
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
@@ -231,6 +270,37 @@ public class MainActivity extends AppCompatActivity {
 
         if (notificationManager != null) {
             notificationManager.notify((int) System.currentTimeMillis(), builder.build());
+        }
+    }
+
+    private void showChatNotification(Conversation conv) {
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if (notificationManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID_CHAT, "New Messages", NotificationManager.IMPORTANCE_HIGH);
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        Intent intent = new Intent(this, ChatActivity.class);
+        intent.putExtra("other_user_id", conv.getLastSenderId());
+        intent.putExtra("user_name", conv.getLastSenderName());
+        intent.putExtra("avatar_url", conv.getAvatarUrl());
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_CHAT)
+                .setSmallIcon(R.drawable.logo_pet)
+                .setContentTitle(conv.getLastSenderName())
+                .setContentText(conv.getLastMessage())
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setContentIntent(pendingIntent);
+
+        if (notificationManager != null) {
+            notificationManager.notify(conv.getLastSenderId().hashCode(), builder.build());
         }
     }
 
@@ -274,21 +344,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        PresenceManager.updateStatus(true);
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        PresenceManager.updateStatus(false);
-    }
-
-    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (urgentAlertListener != null) urgentAlertListener.remove();
+        if (messageListener != null) messageListener.remove();
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) cm.unregisterNetworkCallback(networkCallback);

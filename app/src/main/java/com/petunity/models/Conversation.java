@@ -2,7 +2,7 @@ package com.petunity.models;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.Exclude;
-import com.petunity.utils.TimeUtils;
+import com.petunity.utils.PetTimeUtils;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -21,8 +21,20 @@ public class Conversation {
     private String lastSenderId;
     private String lastSenderName;
     private boolean online;
+    private Map<String, Boolean> readStatus;
 
     public Conversation() {}
+
+    public Map<String, Boolean> getReadStatus() { return readStatus; }
+    public void setReadStatus(Map<String, Boolean> readStatus) { this.readStatus = readStatus; }
+
+    public boolean isUnread(String currentUserId) {
+        if (readStatus == null || !readStatus.containsKey(currentUserId)) {
+            // If we're not the last sender, it might be unread
+            return lastSenderId != null && !lastSenderId.equals(currentUserId);
+        }
+        return Boolean.FALSE.equals(readStatus.get(currentUserId));
+    }
 
     public boolean isOnline() { return online; }
     public void setOnline(boolean online) { this.online = online; }
@@ -40,7 +52,7 @@ public class Conversation {
         if (time != null) return time;
         Timestamp ts = getLastTimestampAsDate();
         if (ts != null) {
-            return TimeUtils.getTimeAgo(ts.toDate());
+            return PetTimeUtils.getTimeAgo(ts.toDate());
         }
         return "";
     }

@@ -6,6 +6,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.petunity.R;
@@ -40,7 +41,7 @@ public class SignUpActivity extends AppCompatActivity {
 
     private ActivitySignupBinding binding;
 
-    interface EmailJsService {
+    public interface EmailJsService {
         @POST("email/send")
         Call<Void> sendEmail(@Body Map<String, Object> data);
     }
@@ -113,7 +114,7 @@ public class SignUpActivity extends AppCompatActivity {
 
         emailJsService.sendEmail(payload).enqueue(new Callback<Void>() {
             @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
+            public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> response) {
                 if (isFinishing()) return;
                 setLoading(false);
 
@@ -132,14 +133,18 @@ public class SignUpActivity extends AppCompatActivity {
                     startActivity(intent);
                 } else {
                     String error = "Unknown Error";
-                    try { if (response.errorBody() != null) error = response.errorBody().string(); } catch (IOException ignored) {}
+                    try { 
+                        if (response.errorBody() != null) {
+                            error = response.errorBody().string();
+                        }
+                    } catch (IOException ignored) {}
                     Log.e(TAG, "EmailJS error: " + error);
                     Toast.makeText(SignUpActivity.this, "Failed to send verification code.", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
-            public void onFailure(Call<Void> call, Throwable t) {
+            public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                 if (isFinishing()) return;
                 setLoading(false);
                 Log.e(TAG, "Network failure", t);
