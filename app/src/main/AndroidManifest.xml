@@ -53,8 +53,21 @@
             android:label="Verify Your Email" />
 
         <activity
+            android:name=".activities.CompleteProfileActivity"
+            android:exported="false"
+            android:label="Complete Your Profile"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".activities.MainActivity"
-            android:exported="false" />
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="petunity" android:host="alert" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".activities.RescuerMainActivity"
@@ -99,6 +112,11 @@
             android:exported="false"
             android:label="My Membership" />
 
+        <activity
+            android:name=".activities.PostDetailActivity"
+            android:exported="false"
+            android:label="Report Details" />
+
         <service
             android:name=".services.MyFirebaseMessagingService"
             android:exported="false">
@@ -107,7 +125,6 @@
             </intent-filter>
         </service>
 
-        <!-- Cloudinary Service Required for Background Uploads -->
         <service
             android:name="com.cloudinary.android.UploadService"
             android:enabled="true"

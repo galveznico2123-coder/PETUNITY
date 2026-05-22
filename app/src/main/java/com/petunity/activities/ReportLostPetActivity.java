@@ -28,7 +28,10 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
 import com.petunity.models.PetListing;
 import com.petunity.models.UserManager;
+import com.petunity.utils.ImageUtils;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 public class ReportLostPetActivity extends AppCompatActivity {
@@ -36,7 +39,7 @@ public class ReportLostPetActivity extends AppCompatActivity {
     private TextInputLayout rewardInputLayout;
     private ImageView petImageView;
     private View addPhotoLayout;
-    private ProgressBar progressBar;
+    private View loadingOverlay;
     private MaterialButton submitButton;
 
     private Uri selectedImageUri;
@@ -77,10 +80,9 @@ public class ReportLostPetActivity extends AppCompatActivity {
         contactInput = findViewById(R.id.contactInput);
         petImageView = findViewById(R.id.petImageView);
         addPhotoLayout = findViewById(R.id.addPhotoLayout);
-        progressBar = findViewById(R.id.loadingProgressBar);
+        loadingOverlay = findViewById(R.id.loadingOverlay);
         submitButton = findViewById(R.id.submitReportButton);
 
-        // Found pets don't usually offer rewards
         if (!isLostReport && rewardInputLayout != null) {
             rewardInputLayout.setVisibility(View.GONE);
         }
@@ -113,29 +115,36 @@ public class ReportLostPetActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (loadingOverlay != null) loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
         submitButton.setEnabled(!loading);
-        submitButton.setText(loading ? "Broadcasting Alert..." : "Broadcast Emergency Report");
     }
 
     private void uploadToCloudinary() {
-        MediaManager.get().upload(selectedImageUri)
-                .unsigned("ml_defaults")
-                .callback(new UploadCallback() {
-                    @Override public void onSuccess(String requestId, Map resultData) {
-                        String imageUrl = (String) resultData.get("secure_url");
-                        saveReportToFirestore(imageUrl);
-                    }
-                    @Override public void onError(String requestId, ErrorInfo error) {
-                        runOnUiThread(() -> {
-                            setLoading(false);
-                            Toast.makeText(ReportLostPetActivity.this, "Upload failed: " + error.getDescription(), Toast.LENGTH_SHORT).show();
-                        });
-                    }
-                    @Override public void onStart(String requestId) {}
-                    @Override public void onProgress(String requestId, long bytes, long totalBytes) {}
-                    @Override public void onReschedule(String requestId, ErrorInfo error) {}
-                }).dispatch();
+        try {
+            File compressedFile = ImageUtils.compressImage(this, selectedImageUri, "report_" + System.currentTimeMillis() + ".jpg");
+            MediaManager.get().upload(compressedFile.getAbsolutePath())
+                    .unsigned("ml_defaults")
+                    .callback(new UploadCallback() {
+                        @Override public void onSuccess(String requestId, Map resultData) {
+                            String imageUrl = (String) resultData.get("secure_url");
+                            saveReportToFirestore(imageUrl);
+                            if (compressedFile.exists()) compressedFile.delete();
+                        }
+                        @Override public void onError(String requestId, ErrorInfo error) {
+                            runOnUiThread(() -> {
+                                setLoading(false);
+                                Toast.makeText(ReportLostPetActivity.this, "Upload failed: " + error.getDescription(), Toast.LENGTH_SHORT).show();
+                            });
+                            if (compressedFile.exists()) compressedFile.delete();
+                        }
+                        @Override public void onStart(String requestId) {}
+                        @Override public void onProgress(String requestId, long bytes, long totalBytes) {}
+                        @Override public void onReschedule(String requestId, ErrorInfo error) {}
+                    }).dispatch();
+        } catch (IOException e) {
+            setLoading(false);
+            Toast.makeText(this, "Failed to compress image", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void saveReportToFirestore(String imageUrl) {

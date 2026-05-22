@@ -169,22 +169,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
+                <com.facebook.shimmer.ShimmerFrameLayout
+                    android:id="@+id/shimmerViewContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:shimmer_auto_start="true"
+                    app:shimmer_duration="1200">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <include layout="@layout/shimmer_home_post" />
+                        <include layout="@layout/shimmer_home_post" />
+                        <include layout="@layout/shimmer_home_post" />
+                    </LinearLayout>
+                </com.facebook.shimmer.ShimmerFrameLayout>
+
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/postsRecyclerView"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false" />
-
-                <com.airbnb.lottie.LottieAnimationView
-                    android:id="@+id/loadingProgressBar"
-                    android:layout_width="100dp"
-                    android:layout_height="100dp"
-                    android:layout_gravity="center"
-                    android:layout_marginTop="40dp"
                     android:visibility="gone"
-                    app:lottie_rawRes="@raw/load_cat"
-                    app:lottie_autoPlay="true"
-                    app:lottie_loop="true" />
+                    android:nestedScrollingEnabled="false" />
 
                 <TextView
                     android:id="@+id/emptyStateText"
@@ -200,14 +206,15 @@
     </androidx.core.widget.NestedScrollView>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/addPostFab"
+        android:id="@+id/addAlertFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="24dp"
+        android:contentDescription="Create Alert"
         android:src="@android:drawable/ic_input_add"
-        app:tint="@color/white"
+        app:tint="#FFFFFF"
         app:backgroundTint="@color/primary"
-        tools:ignore="ContentDescription" />
+        app:elevation="6dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

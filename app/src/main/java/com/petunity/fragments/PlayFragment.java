@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -17,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.airbnb.lottie.LottieAnimationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
@@ -38,7 +38,7 @@ public class PlayFragment extends Fragment implements MatchesAdapter.OnMatchClic
     
     private RecyclerView matchesRecyclerView;
     private MatchesAdapter adapter;
-    private ProgressBar loadingProgressBar;
+    private LottieAnimationView loadingProgressBar;
     private TextView emptyStateText;
     private View requestsButton, addPetButton;
 
@@ -94,6 +94,7 @@ public class PlayFragment extends Fragment implements MatchesAdapter.OnMatchClic
         if (addPetButton != null) {
             addPetButton.setOnClickListener(v -> {
                 if (!isAdded()) return;
+                // Direct to create persona (AddPetActivity)
                 startActivity(new Intent(requireContext(), AddPetActivity.class));
             });
         }

@@ -1,6 +1,8 @@
 package com.petunity.activities;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
@@ -33,7 +35,6 @@ public class VerificationActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        // Get data from Intent
         Intent intent = getIntent();
         name = intent.getStringExtra("name");
         email = intent.getStringExtra("email");
@@ -90,6 +91,7 @@ public class VerificationActivity extends AppCompatActivity {
         user.put("email", email);
         user.put("membershipType", membershipType);
         user.put("createdAt", com.google.firebase.Timestamp.now());
+        user.put("profileCompleted", false); // Mark profile as incomplete for onboarding
 
         db.collection("users").document(userId)
                 .set(user)
@@ -99,23 +101,25 @@ public class VerificationActivity extends AppCompatActivity {
                 .addOnFailureListener(e -> {
                     Log.e("PetUnity", "Error saving user to Firestore", e);
                     Toast.makeText(VerificationActivity.this, "Error saving profile", Toast.LENGTH_SHORT).show();
-                    completeSignUp(); // Still move forward since Auth succeeded
+                    completeSignUp(); 
                 });
     }
 
     private void completeSignUp() {
+        SharedPreferences prefs = getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putBoolean(LoginActivity.PREF_REMEMBER_ME, true)
+                .putBoolean(LoginActivity.PREF_AUTO_LOGIN, true)
+                .putString(LoginActivity.PREF_EMAIL, email)
+                .apply();
+
         UserManager.getInstance().setName(name);
         UserManager.getInstance().setMembershipType(membershipType);
 
         Toast.makeText(this, "Account verified! Welcome, " + name, Toast.LENGTH_SHORT).show();
         
-        Intent intent;
-        if (UserManager.getInstance().isRescuer()) {
-            intent = new Intent(this, RescuerMainActivity.class);
-        } else {
-            intent = new Intent(this, MainActivity.class);
-        }
-
+        // New users always go to CompleteProfileActivity
+        Intent intent = new Intent(this, CompleteProfileActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();

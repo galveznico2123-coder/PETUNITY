@@ -1,7 +1,9 @@
 package com.petunity.fragments;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,12 +38,13 @@ public class ProfileFragment extends Fragment {
     private TextView txtPetsHelped, txtPointsLabel;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
+    private UserManager userManager;
 
     private final ActivityResultLauncher<Intent> editProfileLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
-                    loadUserData();
+                    // UI will update automatically via LiveData observers
                 }
             }
     );
@@ -58,28 +61,35 @@ public class ProfileFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+        userManager = UserManager.getInstance();
 
+        initViews(view);
+        setupListeners(view);
+        setupObservers();
+        
+        // Refresh data from Firestore in background
+        refreshUserDataFromFirestore();
+        fetchReportCount();
+    }
+
+    private void initViews(View view) {
         profileImage = view.findViewById(R.id.profileImage);
         profileName = view.findViewById(R.id.profileName);
         membershipType = view.findViewById(R.id.membershipType);
         profileLocation = view.findViewById(R.id.profileLocation);
         profileBio = view.findViewById(R.id.profileBio);
         txtReportCount = view.findViewById(R.id.txtReportCount);
-        
-        // Stats mapping for Membership Level
         txtPetsHelped = view.findViewById(R.id.txtPetsHelped);
         txtPointsLabel = view.findViewById(R.id.txtPointsLabel);
-        
+    }
+
+    private void setupListeners(View view) {
         MaterialButton btnEditProfile = view.findViewById(R.id.btnEditProfile);
         MaterialButton logoutButton = view.findViewById(R.id.logoutButton);
         MaterialButton myReportsButton = view.findViewById(R.id.btnMyReports);
         MaterialButton myMembershipButton = view.findViewById(R.id.btnMyMembership);
         View reportsClickArea = view.findViewById(R.id.reportsClickArea);
         MaterialButton btnMyPets = view.findViewById(R.id.btnMyPets);
-
-        loadUserData();
-        fetchReportCount();
-        updateMembershipStats();
 
         if (btnEditProfile != null) {
             btnEditProfile.setOnClickListener(v -> {
@@ -89,11 +99,7 @@ public class ProfileFragment extends Fragment {
         }
 
         if (logoutButton != null) {
-            logoutButton.setOnClickListener(v -> {
-                mAuth.signOut();
-                startActivity(new Intent(requireContext(), LoginActivity.class));
-                requireActivity().finish();
-            });
+            logoutButton.setOnClickListener(v -> logout());
         }
 
         if (myReportsButton != null) {
@@ -113,62 +119,92 @@ public class ProfileFragment extends Fragment {
         }
     }
 
-    private void updateMembershipStats() {
-        UserManager user = UserManager.getInstance();
-        if (txtPetsHelped != null) {
-            txtPetsHelped.setText(String.format(Locale.getDefault(), "%.1f", user.getPetsHelped()));
-        }
-        if (txtPointsLabel != null) {
-            txtPointsLabel.setText(user.getMembershipLevelName());
-        }
-        if (membershipType != null) {
-            membershipType.setText(user.getMembershipLevelName());
-        }
+    private void setupObservers() {
+        // Observe profile image for real-time updates
+        userManager.getProfileImageLiveData().observe(getViewLifecycleOwner(), url -> {
+            if (isAdded() && profileImage != null) {
+                Glide.with(this)
+                        .load(url)
+                        .circleCrop()
+                        .placeholder(R.drawable.ic_user)
+                        .into(profileImage);
+            }
+        });
+
+        // Observe name for real-time updates
+        userManager.getUserNameLiveData().observe(getViewLifecycleOwner(), name -> {
+            if (isAdded() && profileName != null) {
+                profileName.setText(name != null && !name.isEmpty() ? name : "User");
+            }
+        });
+
+        // Other fields update on resume or after edit
+        updateUIFields();
     }
 
-    private void loadUserData() {
+    private void logout() {
+        SharedPreferences prefs = requireContext().getSharedPreferences(LoginActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit().putBoolean(LoginActivity.PREF_AUTO_LOGIN, false).apply();
+        
+        mAuth.signOut();
+        userManager.clear();
+        
+        Intent intent = new Intent(requireContext(), LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        requireActivity().finish();
+    }
+
+    private void updateUIFields() {
+        if (profileLocation != null) {
+            String loc = userManager.getLocation();
+            if (loc != null && !loc.isEmpty()) {
+                profileLocation.setText(loc);
+                profileLocation.setVisibility(View.VISIBLE);
+            } else {
+                profileLocation.setVisibility(View.GONE);
+            }
+        }
+
+        if (profileBio != null) {
+            String bio = userManager.getBio();
+            if (bio != null && !bio.isEmpty()) {
+                profileBio.setText(bio);
+            } else {
+                profileBio.setText(R.string.no_bio_added);
+            }
+        }
+
+        if (txtPetsHelped != null) {
+            txtPetsHelped.setText(String.format(Locale.getDefault(), "%.1f", userManager.getPetsHelped()));
+        }
+
+        String level = userManager.getMembershipLevelName();
+        if (txtPointsLabel != null) txtPointsLabel.setText(level);
+        if (membershipType != null) membershipType.setText(level);
+    }
+
+    private void refreshUserDataFromFirestore() {
         String uid = mAuth.getUid();
         if (uid == null) return;
 
         db.collection("users").document(uid).get()
                 .addOnSuccessListener(doc -> {
-                    if (doc.exists()) {
-                        String name = doc.getString("name");
-                        String location = doc.getString("location");
-                        String bio = doc.getString("bio");
-                        String url = doc.getString("profileImageUrl");
+                    if (doc.exists() && isAdded()) {
+                        userManager.setName(doc.getString("name"));
+                        userManager.setLocation(doc.getString("location"));
+                        userManager.setBio(doc.getString("bio"));
+                        userManager.setProfileImageUrl(doc.getString("profileImageUrl"));
+                        userManager.setEmail(doc.getString("email"));
+                        userManager.setPhone(doc.getString("phone"));
+                        
                         Double helped = doc.getDouble("petsHelped");
-
-                        if (helped != null) {
-                            UserManager.getInstance().setPetsHelped(helped);
-                            updateMembershipStats();
-                        }
-
-                        if (profileName != null && name != null) profileName.setText(name);
+                        if (helped != null) userManager.setPetsHelped(helped);
                         
-                        if (profileLocation != null) {
-                            if (location != null && !location.isEmpty()) {
-                                profileLocation.setText(location);
-                                profileLocation.setVisibility(View.VISIBLE);
-                            } else {
-                                profileLocation.setVisibility(View.GONE);
-                            }
-                        }
-                        if (profileBio != null) {
-                            if (bio != null && !bio.isEmpty()) {
-                                profileBio.setText(bio);
-                            } else {
-                                profileBio.setText(R.string.no_bio_added);
-                            }
-                        }
-                        
-                        if (profileImage != null && isAdded()) {
-                            Glide.with(this)
-                                    .load(url)
-                                    .circleCrop()
-                                    .placeholder(R.drawable.ic_user)
-                                    .into(profileImage);
-                        }
+                        String mType = doc.getString("membershipType");
+                        if (mType != null) userManager.setMembershipType(mType);
+
+                        updateUIFields();
                     }
                 });
     }
@@ -181,7 +217,7 @@ public class ProfileFragment extends Fragment {
                 .whereEqualTo("userId", uid)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (txtReportCount != null) {
+                    if (txtReportCount != null && isAdded()) {
                         txtReportCount.setText(String.valueOf(queryDocumentSnapshots.size()));
                     }
                 });

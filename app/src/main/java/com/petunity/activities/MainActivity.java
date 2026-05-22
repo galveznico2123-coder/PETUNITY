@@ -38,6 +38,7 @@ import com.petunity.fragments.HomeFragment;
 import com.petunity.fragments.PlayFragment;
 import com.petunity.fragments.ProfileFragment;
 import com.petunity.models.Post;
+import com.petunity.models.UserManager;
 import com.petunity.utils.PresenceManager;
 
 import java.util.HashMap;
@@ -46,12 +47,9 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     
-    // Intent Keys
     public static final String EXTRA_OPEN_FRAGMENT = "open_fragment";
     public static final String FRAGMENT_CHAT = "chat";
     public static final String FRAGMENT_ALERT = "alert";
-    
-    // Notification Constants
     private static final String CHANNEL_ID_URGENT = "urgent_alerts";
 
     private ActivityMainBinding binding;
@@ -70,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Initialize View Binding
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         
@@ -78,11 +75,10 @@ public class MainActivity extends AppCompatActivity {
         checkPermissions();
         setupNetworkListener();
 
-        // Setup UI Components via binding
         binding.bottomNavigationView.setItemIconTintList(null);
 
         handleIntent(getIntent());
-        loadProfileImage();
+        setupProfileObserver();
 
         binding.profileIconCard.setOnClickListener(v -> {
             loadFragment(new ProfileFragment());
@@ -114,16 +110,33 @@ public class MainActivity extends AppCompatActivity {
         listenForUrgentAlerts();
     }
 
+    private void setupProfileObserver() {
+        // Observe profile image for real-time updates
+        UserManager.getInstance().getProfileImageLiveData().observe(this, url -> {
+            if (url != null && !url.isEmpty()) {
+                Glide.with(this)
+                        .load(url)
+                        .circleCrop()
+                        .placeholder(R.drawable.ic_user)
+                        .into(binding.profileIcon);
+            } else {
+                binding.profileIcon.setImageResource(R.drawable.ic_user);
+            }
+        });
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
         updateUserPresence(true);
+        PresenceManager.updateStatus(true);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         updateUserPresence(false);
+        PresenceManager.updateStatus(false);
     }
 
     private void updateUserPresence(boolean isOnline) {
@@ -184,27 +197,6 @@ public class MainActivity extends AppCompatActivity {
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.nav_host_fragment, fragment)
                 .commit();
-    }
-
-    private void loadProfileImage() {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid != null) {
-            FirebaseFirestore.getInstance().collection("users").document(uid).get()
-                .addOnSuccessListener(doc -> {
-                    if (isFinishing()) return;
-                    String url = doc.getString("profileImageUrl");
-                    if (url != null && !url.isEmpty()) {
-                        Glide.with(this)
-                                .load(url)
-                                .circleCrop()
-                                .placeholder(R.drawable.ic_user)
-                                .into(binding.profileIcon);
-                    } else {
-                        binding.profileIcon.setImageResource(R.drawable.ic_user);
-                    }
-                })
-                .addOnFailureListener(e -> Log.e(TAG, "Error loading profile image", e));
-        }
     }
 
     private void listenForUrgentAlerts() {
@@ -301,18 +293,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        PresenceManager.updateStatus(true);
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        PresenceManager.updateStatus(false);
-    }
-
-    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (urgentAlertListener != null) urgentAlertListener.remove();
@@ -321,6 +301,7 @@ public class MainActivity extends AppCompatActivity {
             if (cm != null) cm.unregisterNetworkCallback(networkCallback);
         }
         updateUserPresence(false);
+        PresenceManager.updateStatus(false);
         binding = null;
     }
 }

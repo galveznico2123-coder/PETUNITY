@@ -17,6 +17,7 @@ import com.petunity.fragments.ChatFragment;
 import com.petunity.fragments.FindFragment;
 import com.petunity.fragments.HomeFragment;
 import com.petunity.fragments.ProfileFragment;
+import com.petunity.models.UserManager;
 
 public class RescuerMainActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
@@ -32,7 +33,6 @@ public class RescuerMainActivity extends AppCompatActivity {
         profileIconCard = findViewById(R.id.profileIconCard);
         profileIcon = findViewById(R.id.profileIcon);
 
-        // For rescuers, we start with the Find/Map view to see pets in need
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.nav_host_fragment, new FindFragment())
@@ -40,7 +40,7 @@ public class RescuerMainActivity extends AppCompatActivity {
             bottomNavigationView.setSelectedItemId(R.id.navigation_find);
         }
 
-        loadProfileImage();
+        setupProfileObserver();
 
         profileIconCard.setOnClickListener(v -> {
             getSupportFragmentManager().beginTransaction()
@@ -70,18 +70,15 @@ public class RescuerMainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadProfileImage() {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid != null && profileIcon != null) {
-            FirebaseFirestore.getInstance().collection("users").document(uid).get()
-                .addOnSuccessListener(doc -> {
-                    String url = doc.getString("profileImageUrl");
-                    if (url != null && !url.isEmpty()) {
-                        Glide.with(this).load(url).circleCrop().placeholder(R.drawable.ic_user).into(profileIcon);
-                    } else {
-                        profileIcon.setImageResource(R.drawable.ic_user);
-                    }
-                });
-        }
+    private void setupProfileObserver() {
+        UserManager.getInstance().getProfileImageLiveData().observe(this, url -> {
+            if (profileIcon != null) {
+                if (url != null && !url.isEmpty()) {
+                    Glide.with(this).load(url).circleCrop().placeholder(R.drawable.ic_user).into(profileIcon);
+                } else {
+                    profileIcon.setImageResource(R.drawable.ic_user);
+                }
+            }
+        });
     }
 }

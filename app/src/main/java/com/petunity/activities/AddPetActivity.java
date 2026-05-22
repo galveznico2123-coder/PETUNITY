@@ -4,12 +4,13 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Address;
 import android.location.Geocoder;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.util.Log;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -30,8 +31,11 @@ import com.petunity.models.ImageValidator;
 import com.petunity.models.PetProfile;
 import com.petunity.models.UserManager;
 import com.google.android.material.chip.Chip;
+import com.petunity.utils.ImageUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -50,21 +54,57 @@ public class AddPetActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private FusedLocationProviderClient fusedLocationClient;
 
-    private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    selectedImageUri = result.getData().getData();
+    private final ActivityResultLauncher<String[]> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(),
+            uri -> {
+                if (uri != null) {
+                    selectedImageUri = uri;
                     try {
-                        selectedBitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), selectedImageUri);
-                        binding.petImageView.setImageBitmap(selectedBitmap);
-                        validateImage();
-                    } catch (IOException e) {
+                        // Take persistable URI permission for long-term access
+                        try {
+                            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (SecurityException e) {
+                            Log.w(TAG, "Could not take persistable permission", e);
+                        }
+                        
+                        // Load bitmap safely with scaling if needed
+                        selectedBitmap = loadScaledBitmap(uri);
+
+                        if (selectedBitmap != null) {
+                            binding.petImageView.setImageBitmap(selectedBitmap);
+                            validateImage();
+                        } else {
+                            Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
+                        }
+                    } catch (Exception e) {
                         Log.e(TAG, "Error loading image", e);
+                        Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 }
             }
     );
+
+    private Bitmap loadScaledBitmap(Uri uri) throws IOException {
+        InputStream is = getContentResolver().openInputStream(uri);
+        if (is == null) return null;
+        
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeStream(is, null, options);
+        is.close();
+
+        int targetW = 800;
+        int targetH = 800;
+        int scale = Math.max(1, Math.min(options.outWidth / targetW, options.outHeight / targetH));
+
+        options.inJustDecodeBounds = false;
+        options.inSampleSize = scale;
+        
+        is = getContentResolver().openInputStream(uri);
+        Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
+        if (is != null) is.close();
+        return bitmap;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,23 +119,42 @@ public class AddPetActivity extends AppCompatActivity {
         detectLocation();
 
         binding.selectImageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("image/*");
-            imagePickerLauncher.launch(intent);
+            imagePickerLauncher.launch(new String[]{"image/*"});
         });
 
-        binding.savePetButton.setOnClickListener(v -> {
-            if (mAuth.getCurrentUser() == null) {
-                Toast.makeText(this, "Please log in first", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (selectedImageUri == null) {
-                Toast.makeText(this, "Please select a photo first", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            uploadToCloudinary();
-        });
+        binding.savePetButton.setOnClickListener(v -> performSave());
+    }
+
+    private void performSave() {
+        if (mAuth.getCurrentUser() == null) {
+            Toast.makeText(this, "Please log in first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String name = binding.petNameInput.getText().toString().trim();
+        if (name.isEmpty()) {
+            binding.petNameInput.setError("Pet name is required");
+            return;
+        }
+
+        if (selectedImageUri == null) {
+            Toast.makeText(this, "Please select a photo of your pet", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        setLoading(true);
+        uploadToCloudinary();
+    }
+
+    private void setLoading(boolean loading) {
+        binding.savePetButton.setEnabled(!loading);
+        binding.selectImageButton.setEnabled(!loading);
+        binding.loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (loading) {
+            binding.savePetButton.setText(R.string.finalizing_persona);
+        } else {
+            binding.savePetButton.setText(R.string.create_persona);
+        }
     }
 
     private void detectLocation() {
@@ -125,13 +184,11 @@ public class AddPetActivity extends AppCompatActivity {
             @Override
             public void onResult(boolean isPet) {
                 if (isFinishing()) return;
-                if (isPet) {
-                    binding.savePetButton.setEnabled(true);
-                    binding.savePetButton.setText(R.string.create_persona);
-                } else {
-                    binding.savePetButton.setEnabled(false);
-                    binding.savePetButton.setText(R.string.no_pet_detected);
-                    Toast.makeText(AddPetActivity.this, "No pet detected. Please use a clear photo.", Toast.LENGTH_LONG).show();
+                binding.savePetButton.setEnabled(true);
+                binding.savePetButton.setText(R.string.create_persona);
+                
+                if (!isPet) {
+                    Toast.makeText(AddPetActivity.this, "Pet not clearly detected. Ensure the photo is clear.", Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -146,38 +203,49 @@ public class AddPetActivity extends AppCompatActivity {
     }
 
     private void uploadToCloudinary() {
-        if (selectedImageUri == null) return;
-        binding.savePetButton.setEnabled(false);
-        binding.savePetButton.setText(R.string.finalizing_persona);
-
-        MediaManager.get().upload(selectedImageUri)
-                .unsigned("ml_defaults")
-                .callback(new UploadCallback() {
-                    @Override public void onStart(String requestId) { }
-                    @Override public void onProgress(String requestId, long bytes, long totalBytes) { }
-                    @Override public void onSuccess(String requestId, Map resultData) {
-                        if (isFinishing()) return;
-                        String imageUrl = (String) resultData.get("secure_url");
-                        savePetPersona(imageUrl);
-                    }
-                    @Override public void onError(String requestId, ErrorInfo error) {
-                        if (isFinishing()) return;
-                        binding.savePetButton.setEnabled(true);
-                        binding.savePetButton.setText(R.string.create_persona);
-                        Toast.makeText(AddPetActivity.this, "Upload Failed", Toast.LENGTH_SHORT).show();
-                    }
-                    @Override public void onReschedule(String requestId, ErrorInfo error) { }
-                }).dispatch();
+        try {
+            File compressedFile = ImageUtils.compressImage(this, selectedImageUri, "pet_" + System.currentTimeMillis() + ".jpg");
+            MediaManager.get().upload(compressedFile.getAbsolutePath())
+                    .unsigned("ml_defaults")
+                    .callback(new UploadCallback() {
+                        @Override public void onStart(String requestId) { }
+                        @Override public void onProgress(String requestId, long bytes, long totalBytes) { }
+                        @Override public void onSuccess(String requestId, Map resultData) {
+                            if (isFinishing()) return;
+                            String imageUrl = (String) resultData.get("secure_url");
+                            savePetPersona(imageUrl);
+                            if (compressedFile.exists()) compressedFile.delete();
+                        }
+                        @Override public void onError(String requestId, ErrorInfo error) {
+                            if (isFinishing()) return;
+                            setLoading(false);
+                            Toast.makeText(AddPetActivity.this, "Upload Failed: " + error.getDescription(), Toast.LENGTH_SHORT).show();
+                            if (compressedFile.exists()) compressedFile.delete();
+                        }
+                        @Override public void onReschedule(String requestId, ErrorInfo error) {
+                            if (compressedFile.exists()) compressedFile.delete();
+                        }
+                    }).dispatch();
+        } catch (IOException e) {
+            setLoading(false);
+            Toast.makeText(this, "Failed to process image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void savePetPersona(String imageUrl) {
-        String name = binding.petNameInput.getText() != null ? binding.petNameInput.getText().toString().trim() : "";
-        String breed = binding.breedInput.getText() != null ? binding.breedInput.getText().toString().trim() : "";
-        String ageStr = binding.ageInput.getText() != null ? binding.ageInput.getText().toString().trim() : "";
-        String weightStr = binding.weightInput.getText() != null ? binding.weightInput.getText().toString().trim() : "";
+        String name = binding.petNameInput.getText().toString().trim();
+        String breed = binding.breedInput.getText().toString().trim();
+        String ageStr = binding.ageInput.getText().toString().trim();
+        String weightStr = binding.weightInput.getText().toString().trim();
         
-        int age = ageStr.isEmpty() ? 0 : Integer.parseInt(ageStr);
-        double weight = weightStr.isEmpty() ? 0.0 : Double.parseDouble(weightStr);
+        int age = 0;
+        double weight = 0.0;
+        try {
+            if (!ageStr.isEmpty()) age = Integer.parseInt(ageStr);
+            if (!weightStr.isEmpty()) weight = Double.parseDouble(weightStr);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Number format error", e);
+        }
         
         String size = "Medium";
         int checkedId = binding.sizeGroup.getCheckedRadioButtonId();
@@ -209,8 +277,8 @@ public class AddPetActivity extends AppCompatActivity {
             finish();
         }).addOnFailureListener(e -> {
             if (isFinishing()) return;
+            setLoading(false);
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            binding.savePetButton.setEnabled(true);
         });
     }
 

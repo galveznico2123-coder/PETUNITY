@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -17,7 +19,6 @@ import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,10 +40,10 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
-import com.petunity.models.UserManager;
 import com.petunity.viewmodels.AlertViewModel;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 
@@ -56,7 +57,7 @@ public class AlertFragment extends Fragment {
     private Spinner animalTypeSpinner, conditionSpinner;
     private CheckBox urgentAlertCheckBox;
     private MaterialButton sendButton;
-    private ProgressBar uploadProgress;
+    private View loadingOverlay;
 
     private Uri selectedImageUri;
     private FirebaseFirestore db;
@@ -71,12 +72,32 @@ public class AlertFragment extends Fragment {
             uri -> {
                 if (uri != null) {
                     selectedImageUri = uri;
-                    photoImageView.setImageURI(uri);
-                    photoImageView.setVisibility(View.VISIBLE);
-                    addPhotoLayout.setVisibility(View.GONE);
+                    loadPreviewImage(uri);
                 }
             }
     );
+
+    private void loadPreviewImage(Uri uri) {
+        try {
+            // Take persistable URI permission
+            requireContext().getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            
+            InputStream inputStream = requireContext().getContentResolver().openInputStream(uri);
+            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+            if (inputStream != null) inputStream.close();
+
+            if (bitmap != null) {
+                photoImageView.setImageBitmap(bitmap);
+                photoImageView.setVisibility(View.VISIBLE);
+                addPhotoLayout.setVisibility(View.GONE);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to load preview image", e);
+            photoImageView.setImageURI(uri); // Fallback
+            photoImageView.setVisibility(View.VISIBLE);
+            addPhotoLayout.setVisibility(View.GONE);
+        }
+    }
 
     @Nullable
     @Override
@@ -103,7 +124,7 @@ public class AlertFragment extends Fragment {
         conditionSpinner = view.findViewById(R.id.conditionSpinner);
         urgentAlertCheckBox = view.findViewById(R.id.urgentAlertCheckBox);
         sendButton = view.findViewById(R.id.sendButton);
-        uploadProgress = view.findViewById(R.id.uploadProgress);
+        loadingOverlay = view.findViewById(R.id.loadingOverlay);
 
         fetchCurrentUserInfo();
         setupSpinners();
@@ -115,7 +136,9 @@ public class AlertFragment extends Fragment {
     private void observeViewModel() {
         viewModel.getIsUploading().observe(getViewLifecycleOwner(), isUploading -> {
             sendButton.setEnabled(!isUploading);
-            if (uploadProgress != null) uploadProgress.setVisibility(isUploading ? View.VISIBLE : View.GONE);
+            if (loadingOverlay != null) {
+                loadingOverlay.setVisibility(isUploading ? View.VISIBLE : View.GONE);
+            }
             sendButton.setText(isUploading ? "Sending..." : "Send Alert");
         });
 
@@ -139,15 +162,15 @@ public class AlertFragment extends Fragment {
 
         sendButton.setOnClickListener(v -> {
             String loc = locationText.getText().toString();
-            String desc = descriptionInput.getText().toString();
-            String type = animalTypeSpinner.getSelectedItem().toString();
+            String desc = descriptionInput.getText() != null ? descriptionInput.getText().toString() : "";
+            String type = animalTypeSpinner.getSelectedItem() != null ? animalTypeSpinner.getSelectedItem().toString() : "Other";
             boolean urgent = urgentAlertCheckBox.isChecked();
 
             if (selectedImageUri == null) {
                 Toast.makeText(getContext(), "Please add a photo of the pet", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (desc.isEmpty()) {
+            if (desc.trim().isEmpty()) {
                 Toast.makeText(getContext(), "Please add a description", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -163,16 +186,19 @@ public class AlertFragment extends Fragment {
                 if (location != null && isAdded()) {
                     updateLocationUI(location);
                 }
-            });
+            }).addOnFailureListener(e -> Log.e(TAG, "Failed to get location", e));
         }
     }
 
     private void updateLocationUI(Location location) {
+        if (!isAdded()) return;
         Geocoder geocoder = new Geocoder(requireContext(), Locale.getDefault());
         try {
             List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
             if (addresses != null && !addresses.isEmpty() && isAdded()) {
-                locationText.setText(addresses.get(0).getLocality() + ", " + addresses.get(0).getAdminArea());
+                String city = addresses.get(0).getLocality();
+                String admin = addresses.get(0).getAdminArea();
+                locationText.setText((city != null ? city : "Unknown") + ", " + (admin != null ? admin : ""));
             }
         } catch (IOException ignored) {}
     }
@@ -184,6 +210,7 @@ public class AlertFragment extends Fragment {
                     .addOnSuccessListener(doc -> {
                         if (doc.exists() && isAdded()) {
                             currentUserName = doc.getString("name");
+                            if (currentUserName == null) currentUserName = "User";
                             currentUserProfileImageUrl = doc.getString("profileImageUrl");
                         }
                     });
@@ -192,10 +219,12 @@ public class AlertFragment extends Fragment {
 
     private void setupSpinners() {
         String[] types = {"Dog", "Cat", "Bird", "Other"};
-        animalTypeSpinner.setAdapter(new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, types));
+        ArrayAdapter<String> typeAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, types);
+        animalTypeSpinner.setAdapter(typeAdapter);
         
         String[] conditions = {"Healthy", "Injured", "Aggressive"};
-        conditionSpinner.setAdapter(new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, conditions));
+        ArrayAdapter<String> conditionAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, conditions);
+        conditionSpinner.setAdapter(conditionAdapter);
     }
 
     private void clearForm() {
@@ -207,11 +236,18 @@ public class AlertFragment extends Fragment {
     }
 
     private void showLocationEditDialog() {
-        EditText input = new EditText(requireContext());
+        final EditText input = new EditText(requireContext());
+        input.setText(locationText.getText());
         new AlertDialog.Builder(requireContext())
                 .setTitle("Update Location")
                 .setView(input)
-                .setPositiveButton("Set", (d, w) -> locationText.setText(input.getText().toString()))
+                .setPositiveButton("Set", (d, w) -> {
+                    String newLoc = input.getText().toString().trim();
+                    if (!newLoc.isEmpty()) {
+                        locationText.setText(newLoc);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 }

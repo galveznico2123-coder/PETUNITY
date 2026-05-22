@@ -99,6 +99,9 @@ dependencies {
     // Lottie
     implementation(libs.lottie)
 
+    // Shimmer
+    implementation(libs.shimmer)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

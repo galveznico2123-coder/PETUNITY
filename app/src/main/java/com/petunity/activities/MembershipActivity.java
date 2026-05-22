@@ -45,9 +45,6 @@ public class MembershipActivity extends AppCompatActivity {
             uri -> {
                 if (uri != null) {
                     currentProofUri = uri;
-                    // Note: We'll update the dialog UI if it's currently showing.
-                    // Since the launcher is in the activity, we'd need a reference to the dialog's binding.
-                    // A better way is to handle the picker inside the dialog logic or use a ViewModel.
                     try {
                         getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     } catch (Exception ignored) {}
@@ -136,17 +133,13 @@ public class MembershipActivity extends AppCompatActivity {
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogBinding.getRoot())
-                .setPositiveButton("Submit Proof", null) // Set listener later to control dismissal
+                .setPositiveButton("Submit Proof", null)
                 .setNegativeButton("Cancel", null)
                 .create();
 
         dialogBinding.proofPhotoCard.setOnClickListener(v -> {
-            // This is a bit tricky with ActivityResultLauncher because we need to update dialogBinding.
-            // For now, we'll use a listener or just rely on the user adding photo before clicking submit.
-            // Simplified for this refactor.
             getProofImage.launch(new String[]{"image/*"});
             
-            // Periodically check if uri is set (or use a better pattern like a ViewModel + State)
             dialogBinding.getRoot().postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -186,14 +179,14 @@ public class MembershipActivity extends AppCompatActivity {
     }
 
     private void uploadProof(String title, String code, double reward, Uri uri) {
-        binding.uploadProgressBar.setVisibility(View.VISIBLE);
+        setLoading(true);
         MediaManager.get().upload(uri).unsigned("ml_defaults").callback(new UploadCallback() {
             @Override public void onSuccess(String id, Map data) {
                 runOnUiThread(() -> submitToFirestore(title, code, reward, (String) data.get("secure_url")));
             }
             @Override public void onError(String id, ErrorInfo e) {
                 runOnUiThread(() -> {
-                    binding.uploadProgressBar.setVisibility(View.GONE);
+                    setLoading(false);
                     Toast.makeText(MembershipActivity.this, "Upload failed: " + e.getDescription(), Toast.LENGTH_SHORT).show();
                 });
             }
@@ -205,6 +198,7 @@ public class MembershipActivity extends AppCompatActivity {
 
     private void submitToFirestore(String task, String proof, double reward, @Nullable String imgUrl) {
         if (userId == null) return;
+        setLoading(true);
         Map<String, Object> data = new HashMap<>();
         data.put("userId", userId);
         data.put("userName", UserManager.getInstance().getName());
@@ -215,10 +209,9 @@ public class MembershipActivity extends AppCompatActivity {
         data.put("status", "pending_review");
 
         db.collection("task_verifications").add(data).addOnSuccessListener(doc -> {
-            binding.uploadProgressBar.setVisibility(View.GONE);
             updateUserPoints(reward);
         }).addOnFailureListener(e -> {
-            binding.uploadProgressBar.setVisibility(View.GONE);
+            setLoading(false);
             Toast.makeText(this, "Error submitting: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
     }
@@ -228,9 +221,16 @@ public class MembershipActivity extends AppCompatActivity {
         double newTotal = user.getPetsHelped() + reward;
         db.collection("users").document(userId).update("petsHelped", newTotal).addOnSuccessListener(aVoid -> {
             user.setPetsHelped(newTotal);
+            setLoading(false);
             updateUI();
             Toast.makeText(this, "Proof submitted! Rank updated.", Toast.LENGTH_LONG).show();
-        });
+        }).addOnFailureListener(e -> setLoading(false));
+    }
+
+    private void setLoading(boolean loading) {
+        if (binding.loadingOverlay != null) {
+            binding.loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        }
     }
 
     @Override

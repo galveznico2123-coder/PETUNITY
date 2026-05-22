@@ -90,8 +90,8 @@ public class SignUpActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        binding.signupProgressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
-        binding.signupButton.setVisibility(loading ? View.INVISIBLE : View.VISIBLE);
+        binding.loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        binding.signupButton.setEnabled(!loading);
     }
 
     private void sendVerificationCode(String email, String name, String password) {

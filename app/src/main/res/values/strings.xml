@@ -127,6 +127,7 @@
     <string name="only_match_with_vaccinated_pets">Only match with vaccinated pets</string>
     <string name="my_pet_is_vaccinated">My pet is vaccinated</string>
     <string name="my_pet">My Pet</string>
+    <string name="remember_me">Remember Me</string>
 
     <!-- Correct Web Client ID from google-services.json -->
     <string name="default_web_client_id">980498342431-58uuvgke4t99q8cuhifvcte26kqlh23p.apps.googleusercontent.com</string>

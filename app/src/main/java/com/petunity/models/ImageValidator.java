@@ -16,9 +16,10 @@ import java.util.List;
 public class ImageValidator {
     private static final String TAG = "ImageValidator";
     
-    // Keywords we allow for Pet posts - made more specific
+    // Keywords we allow for Pet posts - expanded for better detection
     private static final List<String> ALLOWED_LABELS = Arrays.asList(
-            "Dog", "Cat", "Puppy", "Kitten", "Bird", "Hamster", "Rabbit", "Canidae", "Felidae", "Parrot"
+            "Dog", "Cat", "Puppy", "Kitten", "Bird", "Hamster", "Rabbit", "Canidae", "Felidae", "Parrot",
+            "Animal", "Pet", "Mammal", "Vertebrate", "Tail", "Snout", "Fur"
     );
 
     public interface ValidationCallback {
@@ -27,11 +28,16 @@ public class ImageValidator {
     }
 
     public static void validateIsPet(Context context, Bitmap bitmap, ValidationCallback callback) {
+        if (bitmap == null) {
+            callback.onResult(false);
+            return;
+        }
+
         InputImage image = InputImage.fromBitmap(bitmap, 0);
         
-        // Use a slightly higher confidence threshold for better accuracy
+        // Use a more permissive threshold to avoid blocking valid photos
         ImageLabelerOptions options = new ImageLabelerOptions.Builder()
-                .setConfidenceThreshold(0.7f)
+                .setConfidenceThreshold(0.5f)
                 .build();
         ImageLabeler labeler = ImageLabeling.getClient(options);
 
@@ -54,8 +60,10 @@ public class ImageValidator {
     }
 
     private static boolean isAllowed(String label) {
+        if (label == null) return false;
+        String lowerLabel = label.toLowerCase();
         for (String allowed : ALLOWED_LABELS) {
-            if (label.toLowerCase().contains(allowed.toLowerCase())) {
+            if (lowerLabel.contains(allowed.toLowerCase())) {
                 return true;
             }
         }

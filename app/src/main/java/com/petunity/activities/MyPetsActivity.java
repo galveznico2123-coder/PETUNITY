@@ -3,7 +3,6 @@ package com.petunity.activities;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -14,7 +13,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
 import com.petunity.R;
 import com.petunity.adapters.LostFoundAdapter;
 import com.petunity.models.PetListing;
@@ -28,7 +26,7 @@ public class MyPetsActivity extends AppCompatActivity {
     private List<PetListing> myPetsList = new ArrayList<>();
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
-    private ProgressBar progressBar;
+    private View loadingOverlay;
     private TextView emptyText;
 
     @Override
@@ -47,7 +45,7 @@ public class MyPetsActivity extends AppCompatActivity {
             toolbar.setNavigationOnClickListener(v -> finish());
         }
 
-        progressBar = findViewById(R.id.progressBar);
+        loadingOverlay = findViewById(R.id.loadingOverlay);
         emptyText = findViewById(R.id.emptyText);
         RecyclerView recyclerView = findViewById(R.id.myPostsRecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -65,12 +63,12 @@ public class MyPetsActivity extends AppCompatActivity {
         String currentUserId = mAuth.getUid();
         if (currentUserId == null) return;
 
-        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        setLoading(true);
 
         db.collection("pet_listing")
                 .whereEqualTo("userId", currentUserId)
                 .addSnapshotListener((value, error) -> {
-                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    setLoading(false);
                     
                     if (error != null) {
                         Log.e(TAG, "Listen failed.", error);
@@ -93,5 +91,11 @@ public class MyPetsActivity extends AppCompatActivity {
                         }
                     }
                 });
+    }
+
+    private void setLoading(boolean loading) {
+        if (loadingOverlay != null) {
+            loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        }
     }
 }

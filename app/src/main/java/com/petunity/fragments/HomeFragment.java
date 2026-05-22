@@ -1,18 +1,12 @@
 package com.petunity.fragments;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -21,8 +15,9 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.airbnb.lottie.LottieAnimationView;
 import com.bumptech.glide.Glide;
+import com.facebook.shimmer.ShimmerFrameLayout;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.firebase.auth.FirebaseAuth;
@@ -38,19 +33,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class HomeFragment extends Fragment {
-    private static final String TAG = "HomeFragment";
     private PostsAdapter adapter;
     private List<Post> postList = new ArrayList<>();
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
-    private String currentUserProfileImageUrl;
     
     private TextView helpedCountText, activeCountText, nearYouCountText, welcomeUserText, userRankText, pointsToNextLevel;
     private ImageView homeProfileImage;
-    private LottieAnimationView loadingProgressBar;
+    private ShimmerFrameLayout shimmerViewContainer;
     private LinearProgressIndicator miniMembershipProgress;
     private TextView emptyStateText;
     private HomeViewModel viewModel;
+    private RecyclerView recyclerView;
+    private UserManager userManager;
 
     @Nullable
     @Override
@@ -64,38 +59,12 @@ public class HomeFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+        userManager = UserManager.getInstance();
         viewModel = new ViewModelProvider(this).get(HomeViewModel.class);
         
-        welcomeUserText = view.findViewById(R.id.welcomeUserText);
-        userRankText = view.findViewById(R.id.userRankText);
-        homeProfileImage = view.findViewById(R.id.homeProfileImage);
-        helpedCountText = view.findViewById(R.id.helpedCountText);
-        activeCountText = view.findViewById(R.id.activeCountText);
-        nearYouCountText = view.findViewById(R.id.nearYouCountText);
-        loadingProgressBar = view.findViewById(R.id.loadingProgressBar);
-        emptyStateText = view.findViewById(R.id.emptyStateText);
-        miniMembershipProgress = view.findViewById(R.id.miniMembershipProgress);
-        pointsToNextLevel = view.findViewById(R.id.pointsToNextLevel);
-        
-        View membershipCard = view.findViewById(R.id.membershipMiniCard);
-        if (membershipCard != null) {
-            membershipCard.setOnClickListener(v -> startActivity(new Intent(requireContext(), MembershipActivity.class)));
-        }
-
-        RecyclerView recyclerView = view.findViewById(R.id.postsRecyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-
-        adapter = new PostsAdapter(postList);
-        recyclerView.setAdapter(adapter);
-
-        FloatingActionButton addPostFab = view.findViewById(R.id.addPostFab);
-        if (addPostFab != null) {
-            addPostFab.setOnClickListener(v -> showCreatePostDialog());
-        }
-
-        updateMembershipUI();
-        observeViewModel();
-        fetchCurrentUserProfileImage();
+        initViews(view);
+        setupClickListeners(view);
+        setupObservers();
         fetchStats();
 
         String currentUid = mAuth.getUid();
@@ -104,17 +73,93 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    private void updateMembershipUI() {
-        UserManager user = UserManager.getInstance();
-        if (welcomeUserText != null) {
-            String name = user.getName();
-            welcomeUserText.setText(name != null ? "Hi, " + name + "!" : "Welcome Hero!");
+    private void initViews(View view) {
+        welcomeUserText = view.findViewById(R.id.welcomeUserText);
+        userRankText = view.findViewById(R.id.userRankText);
+        homeProfileImage = view.findViewById(R.id.homeProfileImage);
+        helpedCountText = view.findViewById(R.id.helpedCountText);
+        activeCountText = view.findViewById(R.id.activeCountText);
+        nearYouCountText = view.findViewById(R.id.nearYouCountText);
+        shimmerViewContainer = view.findViewById(R.id.shimmerViewContainer);
+        emptyStateText = view.findViewById(R.id.emptyStateText);
+        miniMembershipProgress = view.findViewById(R.id.miniMembershipProgress);
+        pointsToNextLevel = view.findViewById(R.id.pointsToNextLevel);
+        recyclerView = view.findViewById(R.id.postsRecyclerView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        adapter = new PostsAdapter(postList);
+        recyclerView.setAdapter(adapter);
+    }
+
+    private void setupClickListeners(View view) {
+        View membershipCard = view.findViewById(R.id.membershipMiniCard);
+        if (membershipCard != null) {
+            membershipCard.setOnClickListener(v -> startActivity(new Intent(requireContext(), MembershipActivity.class)));
         }
+
+        FloatingActionButton addAlertFab = view.findViewById(R.id.addAlertFab);
+        if (addAlertFab != null) {
+            addAlertFab.setOnClickListener(v -> {
+                if (getActivity() != null) {
+                    BottomNavigationView bottomNav = getActivity().findViewById(R.id.bottomNavigationView);
+                    if (bottomNav != null) {
+                        bottomNav.setSelectedItemId(R.id.navigation_alert);
+                    }
+                }
+            });
+        }
+    }
+
+    private void setupObservers() {
+        // Observe Real-time Profile Updates from UserManager
+        userManager.getProfileImageLiveData().observe(getViewLifecycleOwner(), url -> {
+            if (isAdded() && homeProfileImage != null) {
+                Glide.with(this)
+                        .load(url)
+                        .circleCrop()
+                        .placeholder(R.drawable.ic_user)
+                        .into(homeProfileImage);
+            }
+        });
+
+        userManager.getNameLiveData().observe(getViewLifecycleOwner(), name -> {
+            if (isAdded() && welcomeUserText != null) {
+                welcomeUserText.setText(name != null && !name.isEmpty() ? "Hi, " + name + "!" : "Welcome Hero!");
+            }
+        });
+
+        viewModel.getPosts().observe(getViewLifecycleOwner(), posts -> {
+            postList.clear();
+            postList.addAll(posts);
+            adapter.notifyDataSetChanged();
+            if (emptyStateText != null) {
+                emptyStateText.setVisibility(posts.isEmpty() ? View.VISIBLE : View.GONE);
+            }
+            if (shimmerViewContainer != null) {
+                shimmerViewContainer.stopShimmer();
+                shimmerViewContainer.setVisibility(View.GONE);
+            }
+            recyclerView.setVisibility(View.VISIBLE);
+        });
+
+        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
+            if (isLoading) {
+                recyclerView.setVisibility(View.GONE);
+                if (shimmerViewContainer != null) {
+                    shimmerViewContainer.setVisibility(View.VISIBLE);
+                    shimmerViewContainer.startShimmer();
+                }
+            }
+        });
+
+        updateMembershipUI();
+    }
+
+    private void updateMembershipUI() {
         if (userRankText != null) {
-            userRankText.setText(user.getMembershipLevelName());
+            userRankText.setText(userManager.getMembershipLevelName());
         }
         
-        double helped = user.getPetsHelped();
+        double helped = userManager.getPetsHelped();
         int currentPoints = (int) Math.ceil(helped);
         int nextThreshold = 6;
         String nextEmoji = "🐶";
@@ -131,45 +176,6 @@ public class HomeFragment extends Fragment {
         if (pointsToNextLevel != null) {
             int needed = nextThreshold - currentPoints;
             pointsToNextLevel.setText(needed > 0 ? needed + " pts to " + nextEmoji : "Max Rank!");
-        }
-    }
-
-    private void observeViewModel() {
-        viewModel.getPosts().observe(getViewLifecycleOwner(), posts -> {
-            postList.clear();
-            postList.addAll(posts);
-            adapter.notifyDataSetChanged();
-            
-            if (emptyStateText != null) {
-                emptyStateText.setVisibility(posts.isEmpty() ? View.VISIBLE : View.GONE);
-            }
-        });
-
-        viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
-            if (loadingProgressBar != null) {
-                loadingProgressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-            }
-        });
-
-        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
-            if (error != null && isAdded()) {
-                Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private void fetchCurrentUserProfileImage() {
-        String uid = mAuth.getUid();
-        if (uid != null) {
-            db.collection("users").document(uid).get().addOnSuccessListener(documentSnapshot -> {
-                if (!isAdded()) return;
-                currentUserProfileImageUrl = documentSnapshot.getString("profileImageUrl");
-                if (currentUserProfileImageUrl != null && !currentUserProfileImageUrl.isEmpty()) {
-                    Glide.with(this).load(currentUserProfileImageUrl).circleCrop().placeholder(R.drawable.ic_user).into(homeProfileImage);
-                } else if (homeProfileImage != null) {
-                    homeProfileImage.setImageResource(R.drawable.ic_user);
-                }
-            });
         }
     }
 
@@ -196,52 +202,17 @@ public class HomeFragment extends Fragment {
         });
     }
 
-    private void showCreatePostDialog() {
-        if (!isAdded()) return;
-        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_post, null);
-        EditText titleInput = dialogView.findViewById(R.id.postTitleInput);
-        EditText contentInput = dialogView.findViewById(R.id.postContentInput);
-        CheckBox urgentCheckBox = dialogView.findViewById(R.id.urgentCheckBox);
-
-        new AlertDialog.Builder(requireContext())
-                .setTitle("New Report")
-                .setView(dialogView)
-                .setPositiveButton("Post", (dialog, which) -> {
-                    String title = titleInput.getText().toString().trim();
-                    String content = contentInput.getText().toString().trim();
-                    boolean isUrgent = urgentCheckBox.isChecked();
-                    
-                    if (!title.isEmpty() && !content.isEmpty()) {
-                        savePostToFirebase(title, content, isUrgent);
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (shimmerViewContainer != null && shimmerViewContainer.getVisibility() == View.VISIBLE) {
+            shimmerViewContainer.startShimmer();
+        }
     }
 
-    private void savePostToFirebase(String title, String content, boolean isUrgent) {
-        if (mAuth.getCurrentUser() == null) return;
-        
-        String userId = mAuth.getCurrentUser().getUid();
-        String userName = UserManager.getInstance().getName();
-
-        Post newPost = new Post(userName, "Just now", title, content);
-        newPost.setUserId(userId);
-        newPost.setUserProfileImageUrl(currentUserProfileImageUrl);
-        newPost.setUrgent(isUrgent);
-        newPost.setPrivate(false);
-
-        db.collection("posts").add(newPost)
-                .addOnSuccessListener(documentReference -> {
-                    if (isAdded()) {
-                        Toast.makeText(requireContext(), "Posted successfully!", Toast.LENGTH_SHORT).show();
-                        updateMembershipUI(); // Refresh UI after posting
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    if (isAdded()) {
-                        Toast.makeText(requireContext(), "Failed to post", Toast.LENGTH_SHORT).show();
-                    }
-                });
+    @Override
+    public void onPause() {
+        if (shimmerViewContainer != null) shimmerViewContainer.stopShimmer();
+        super.onPause();
     }
 }

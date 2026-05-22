@@ -2,10 +2,12 @@ package com.petunity.activities;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Patterns;
 import android.view.View;
 import android.widget.Toast;
 
@@ -27,6 +29,7 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.petunity.R;
@@ -38,6 +41,11 @@ import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
     private static final String TAG = "LoginActivity";
+    public static final String PREFS_NAME = "PetUnityPrefs";
+    public static final String PREF_REMEMBER_ME = "remember_me";
+    public static final String PREF_AUTO_LOGIN = "auto_login";
+    public static final String PREF_EMAIL = "saved_email";
+    
     private static final String TYPE_GOOGLE_ID_TOKEN_CREDENTIAL = "com.google.android.libraries.identity.googleid.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL";
     private static final int NOTIFICATION_PERMISSION_CODE = 101;
 
@@ -45,6 +53,7 @@ public class LoginActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private CredentialManager credentialManager;
+    private SharedPreferences prefs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,28 +61,49 @@ public class LoginActivity extends AppCompatActivity {
         binding = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         credentialManager = CredentialManager.create(this);
+        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
+        checkAutoLogin();
+        loadRememberedUser();
         requestNotificationPermission();
-
-        // Set click listeners
         setupClickListeners();
     }
 
-    private void setupClickListeners() {
-        // Email/Password login
-        binding.loginButton.setOnClickListener(v -> performEmailLogin());
+    private void checkAutoLogin() {
+        if (prefs.getBoolean(PREF_AUTO_LOGIN, false) && mAuth.getCurrentUser() != null) {
+            fetchUserDataAndNavigate(mAuth.getCurrentUser());
+        }
+    }
 
-        // Sign up navigation
+    private void loadRememberedUser() {
+        boolean isRemembered = prefs.getBoolean(PREF_REMEMBER_ME, false);
+        binding.rememberMeCheckbox.setChecked(isRemembered);
+        if (isRemembered) {
+            String savedEmail = prefs.getString(PREF_EMAIL, "");
+            binding.emailInput.setText(savedEmail);
+        }
+    }
+
+    private void setupClickListeners() {
+        binding.loginButton.setOnClickListener(v -> performEmailLogin());
         binding.signUpText.setOnClickListener(v ->
                 startActivity(new Intent(LoginActivity.this, SignUpActivity.class))
         );
-
-        // Google sign in
         binding.googleButton.setOnClickListener(v -> performGoogleLogin());
+        
+        binding.forgotPasswordText.setOnClickListener(v -> {
+            String email = binding.emailInput.getText().toString().trim();
+            if (email.isEmpty() || !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                Toast.makeText(this, "Enter a valid email to reset password", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            mAuth.sendPasswordResetEmail(email)
+                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Reset link sent to " + email, Toast.LENGTH_SHORT).show())
+                    .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        });
     }
 
     private void performEmailLogin() {
@@ -82,13 +112,11 @@ public class LoginActivity extends AppCompatActivity {
 
         if (email.isEmpty()) {
             binding.emailInput.setError("Email is required");
-            binding.emailInput.requestFocus();
             return;
         }
 
         if (password.isEmpty()) {
             binding.passwordInput.setError("Password is required");
-            binding.passwordInput.requestFocus();
             return;
         }
 
@@ -102,17 +130,9 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean loading) {
-        if (loading) {
-            binding.loginButton.setEnabled(false);
-            binding.googleButton.setEnabled(false);
-            binding.loginButton.setText("");
-            binding.loginProgressBar.setVisibility(View.VISIBLE);
-        } else {
-            binding.loginButton.setEnabled(true);
-            binding.googleButton.setEnabled(true);
-            binding.loginButton.setText(R.string.sign_in);
-            binding.loginProgressBar.setVisibility(View.GONE);
-        }
+        binding.loginButton.setEnabled(!loading);
+        binding.googleButton.setEnabled(!loading);
+        binding.loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
     }
 
     private void requestNotificationPermission() {
@@ -130,18 +150,26 @@ public class LoginActivity extends AppCompatActivity {
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        fetchUserDataAndNavigate(user);
+                        savePreferences(email);
+                        fetchUserDataAndNavigate(mAuth.getCurrentUser());
                     } else {
                         setLoading(false);
-                        String errorMessage = "Login failed: ";
-                        if (task.getException() != null) {
-                            errorMessage += task.getException().getMessage();
-                        }
-                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
-                        Log.e(TAG, "Email login failed", task.getException());
+                        Toast.makeText(LoginActivity.this, "Login failed: " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
                     }
                 });
+    }
+
+    private void savePreferences(String email) {
+        SharedPreferences.Editor editor = prefs.edit();
+        boolean rememberMe = binding.rememberMeCheckbox.isChecked();
+        editor.putBoolean(PREF_REMEMBER_ME, rememberMe);
+        editor.putBoolean(PREF_AUTO_LOGIN, rememberMe);
+        if (rememberMe) {
+            editor.putString(PREF_EMAIL, email);
+        } else {
+            editor.remove(PREF_EMAIL);
+        }
+        editor.apply();
     }
 
     private void fetchUserDataAndNavigate(FirebaseUser user) {
@@ -151,44 +179,50 @@ public class LoginActivity extends AppCompatActivity {
         }
 
         db.collection("users").document(user.getUid()).get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        String name = documentSnapshot.getString("name");
-                        String membershipType = documentSnapshot.getString("membershipType");
-
-                        if (name != null) UserManager.getInstance().setName(name);
-                        if (membershipType != null) UserManager.getInstance().setMembershipType(membershipType);
-
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        populateUserManager(doc);
                         updateFcmToken(user.getUid());
+                        
+                        Boolean profileCompleted = doc.getBoolean("profileCompleted");
+                        if (Boolean.TRUE.equals(profileCompleted)) {
+                            updateUI(user);
+                        } else {
+                            startActivity(new Intent(this, CompleteProfileActivity.class));
+                            finish();
+                        }
+                    } else {
+                        updateUI(user);
                     }
-                    updateUI(user);
                 })
                 .addOnFailureListener(e -> {
                     setLoading(false);
-                    Log.e(TAG, "Error fetching user data", e);
                     Toast.makeText(this, "Error loading user data", Toast.LENGTH_SHORT).show();
                     updateUI(user);
                 });
+    }
+
+    private void populateUserManager(DocumentSnapshot doc) {
+        UserManager um = UserManager.getInstance();
+        um.setName(doc.getString("name"));
+        um.setEmail(doc.getString("email"));
+        um.setPhone(doc.getString("phone"));
+        um.setLocation(doc.getString("location"));
+        um.setBio(doc.getString("bio"));
+        um.setProfileImageUrl(doc.getString("profileImageUrl"));
+        um.setMembershipType(doc.getString("membershipType") != null ? doc.getString("membershipType") : "Citizen Member");
+        Double helped = doc.getDouble("petsHelped");
+        if (helped != null) um.setPetsHelped(helped);
     }
 
     private void updateFcmToken(String userId) {
         FirebaseMessaging.getInstance().getToken()
                 .addOnSuccessListener(token -> {
                     if (token != null) {
-                        Map<String, Object> updates = new HashMap<>();
-                        updates.put("fcmToken", token);
-
-                        db.collection("users").document(userId)
-                                .update(updates)
-                                .addOnSuccessListener(aVoid -> Log.d(TAG, "FCM Token updated successfully"))
-                                .addOnFailureListener(e -> Log.e(TAG, "Failed to update FCM token", e));
+                        db.collection("users").document(userId).update("fcmToken", token);
                     }
-
-                    // Subscribe to notification topics
                     FirebaseMessaging.getInstance().subscribeToTopic("alerts");
-                    FirebaseMessaging.getInstance().subscribeToTopic("urgent_alerts");
-                })
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to get FCM token", e));
+                });
     }
 
     private void signInWithGoogle() {
@@ -221,20 +255,17 @@ public class LoginActivity extends AppCompatActivity {
     private void handleSignIn(Credential credential) {
         if (credential instanceof CustomCredential &&
                 credential.getType().equals(TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)) {
-
             Bundle credentialData = ((CustomCredential) credential).getData();
             try {
-                GoogleIdTokenCredential googleIdTokenCredential =
-                        GoogleIdTokenCredential.createFrom(credentialData);
+                GoogleIdTokenCredential googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credentialData);
                 firebaseAuthWithGoogle(googleIdTokenCredential.getIdToken());
             } catch (Exception e) {
                 setLoading(false);
-                Log.e(TAG, "Error handling Google Sign In", e);
-                Toast.makeText(LoginActivity.this, "Authentication error", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Authentication error", Toast.LENGTH_SHORT).show();
             }
         } else {
             setLoading(false);
-            Toast.makeText(LoginActivity.this, "Unsupported login method", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Unsupported login method", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -243,12 +274,11 @@ public class LoginActivity extends AppCompatActivity {
         mAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        checkIfUserExistsAndNavigate(user);
+                        prefs.edit().putBoolean(PREF_AUTO_LOGIN, true).apply();
+                        checkIfUserExistsAndNavigate(mAuth.getCurrentUser());
                     } else {
                         setLoading(false);
-                        Toast.makeText(LoginActivity.this, "Google Sign In Failed", Toast.LENGTH_LONG).show();
-                        Log.e(TAG, "Google auth failed", task.getException());
+                        Toast.makeText(this, "Google Sign In Failed", Toast.LENGTH_LONG).show();
                     }
                 });
     }
@@ -259,40 +289,34 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        String userId = user.getUid();
-        String email = user.getEmail();
-        String name = user.getDisplayName();
-
-        db.collection("users").document(userId).get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (!documentSnapshot.exists()) {
+        db.collection("users").document(user.getUid()).get()
+                .addOnSuccessListener(doc -> {
+                    if (!doc.exists()) {
                         Map<String, Object> userData = new HashMap<>();
-                        userData.put("email", email);
-                        userData.put("name", name != null ? name : "");
-                        userData.put("membershipType", "standard");
+                        userData.put("email", user.getEmail());
+                        userData.put("name", user.getDisplayName() != null ? user.getDisplayName() : "");
+                        userData.put("membershipType", "Citizen Member");
                         userData.put("createdAt", System.currentTimeMillis());
+                        userData.put("profileCompleted", false);
 
-                        db.collection("users").document(userId)
-                                .set(userData)
+                        db.collection("users").document(user.getUid()).set(userData)
                                 .addOnSuccessListener(aVoid -> {
-                                    UserManager.getInstance().setName(name);
-                                    UserManager.getInstance().setMembershipType("standard");
-                                    updateFcmToken(userId);
-                                    updateUI(user);
-                                })
-                                .addOnFailureListener(e -> {
-                                    setLoading(false);
-                                    updateUI(user);
+                                    UserManager.getInstance().setName(user.getDisplayName());
+                                    updateFcmToken(user.getUid());
+                                    startActivity(new Intent(this, CompleteProfileActivity.class));
+                                    finish();
                                 });
                     } else {
-                        String existingName = documentSnapshot.getString("name");
-                        String membershipType = documentSnapshot.getString("membershipType");
-
-                        if (existingName != null) UserManager.getInstance().setName(existingName);
-                        if (membershipType != null) UserManager.getInstance().setMembershipType(membershipType);
-
-                        updateFcmToken(userId);
-                        updateUI(user);
+                        populateUserManager(doc);
+                        updateFcmToken(user.getUid());
+                        
+                        Boolean profileCompleted = doc.getBoolean("profileCompleted");
+                        if (Boolean.TRUE.equals(profileCompleted)) {
+                            updateUI(user);
+                        } else {
+                            startActivity(new Intent(this, CompleteProfileActivity.class));
+                            finish();
+                        }
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -303,12 +327,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private void updateUI(FirebaseUser user) {
         if (user != null) {
-            Intent intent;
-            if (UserManager.getInstance().isRescuer()) {
-                intent = new Intent(LoginActivity.this, RescuerMainActivity.class);
-            } else {
-                intent = new Intent(LoginActivity.this, MainActivity.class);
-            }
+            Intent intent = new Intent(this, UserManager.getInstance().isRescuer() ? RescuerMainActivity.class : MainActivity.class);
             startActivity(intent);
             finish();
         } else {

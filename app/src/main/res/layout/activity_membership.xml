@@ -23,7 +23,7 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <RelativeLayout
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
@@ -132,16 +132,26 @@
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
-        <com.airbnb.lottie.LottieAnimationView
-            android:id="@+id/uploadProgressBar"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_centerInParent="true"
+        <!-- Centered Loading Overlay -->
+        <FrameLayout
+            android:id="@+id/loadingOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#80000000"
             android:visibility="gone"
-            app:lottie_rawRes="@raw/load_cat"
-            app:lottie_autoPlay="true"
-            app:lottie_loop="true" />
+            android:clickable="true"
+            android:focusable="true">
 
-    </RelativeLayout>
+            <com.airbnb.lottie.LottieAnimationView
+                android:id="@+id/uploadProgressBar"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center"
+                app:lottie_rawRes="@raw/load_cat"
+                app:lottie_autoPlay="true"
+                app:lottie_loop="true" />
+        </FrameLayout>
+
+    </FrameLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

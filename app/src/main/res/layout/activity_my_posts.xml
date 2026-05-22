@@ -40,14 +40,6 @@
             android:paddingBottom="80dp"
             tools:listitem="@layout/item_post" />
 
-        <ProgressBar
-            android:id="@+id/progressBar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:indeterminateTint="@color/primary"
-            android:visibility="gone" />
-
         <LinearLayout
             android:id="@+id/emptyStateLayout"
             android:layout_width="wrap_content"
@@ -87,6 +79,26 @@
                 android:textSize="15sp" />
 
         </LinearLayout>
+
+        <!-- Centered Loading Overlay -->
+        <FrameLayout
+            android:id="@+id/loadingOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#80000000"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true">
+
+            <com.airbnb.lottie.LottieAnimationView
+                android:id="@+id/progressBar"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center"
+                app:lottie_rawRes="@raw/load_cat"
+                app:lottie_autoPlay="true"
+                app:lottie_loop="true" />
+        </FrameLayout>
 
     </FrameLayout>
 
