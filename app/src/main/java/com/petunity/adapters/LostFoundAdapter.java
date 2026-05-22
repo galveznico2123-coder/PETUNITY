@@ -11,7 +11,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.petunity.R;
 import com.petunity.databinding.ItemPetListingBinding;
 import com.petunity.models.PetListing;
-import com.petunity.utils.TimeUtils;
+import com.petunity.utils.PetTimeUtils;
 
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +67,7 @@ public class LostFoundAdapter extends RecyclerView.Adapter<LostFoundAdapter.PetV
             
             // Display relative time
             if (pet.getTimestamp() != null) {
-                binding.petTimeText.setText(TimeUtils.getTimeAgo(pet.getTimestamp().toDate()));
+                binding.petTimeText.setText(PetTimeUtils.getTimeAgo(pet.getTimestamp().toDate()));
             } else {
                 binding.petTimeText.setText(pet.getTimeAgo());
             }

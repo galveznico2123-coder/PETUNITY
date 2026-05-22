@@ -21,8 +21,7 @@ import com.petunity.databinding.ActivityChatBinding;
 import com.petunity.models.Message;
 import com.petunity.adapters.ChatAdapter;
 import com.petunity.models.UserManager;
-import com.petunity.utils.PresenceManager;
-import com.petunity.utils.TimeUtils;
+import com.petunity.utils.PetTimeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +31,8 @@ import java.util.Map;
 
 public class ChatActivity extends AppCompatActivity {
     private static final String TAG = "ChatActivity";
+    public static String activeChatUserId = null;
+
     private ActivityChatBinding binding;
     private ChatAdapter adapter;
     private List<Message> messages;
@@ -86,10 +87,25 @@ public class ChatActivity extends AppCompatActivity {
         binding.chatRecyclerView.setLayoutManager(layoutManager);
         binding.chatRecyclerView.setAdapter(adapter);
 
+        markAsRead();
         listenForMessages();
         listenForPresence();
 
         binding.sendButton.setOnClickListener(v -> sendMessage());
+    }
+
+    private void markAsRead() {
+        if (currentUserId == null || conversationId == null) return;
+
+        Map<String, Object> readUpdate = new HashMap<>();
+        readUpdate.put("readStatus." + currentUserId, true);
+
+        db.collection("conversations").document(conversationId)
+                .update(readUpdate)
+                .addOnFailureListener(e -> {
+                    // If conversation doesn't exist yet, we don't need to mark as read
+                    Log.d(TAG, "Conversation doesn't exist yet for read update");
+                });
     }
 
     private void listenForPresence() {
@@ -111,7 +127,7 @@ public class ChatActivity extends AppCompatActivity {
                         binding.chatStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
                         binding.chatOnlineDot.setVisibility(android.view.View.VISIBLE);
                     } else if (lastSeen != null) {
-                        String timeAgo = TimeUtils.getTimeAgo(new java.util.Date(lastSeen));
+                        String timeAgo = PetTimeUtils.getTimeAgo(new java.util.Date(lastSeen));
                         binding.chatStatus.setText("Active " + timeAgo);
                         binding.chatStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
                         binding.chatOnlineDot.setVisibility(android.view.View.GONE);
@@ -153,6 +169,11 @@ public class ChatActivity extends AppCompatActivity {
                                     messages.add(message);
                                     adapter.notifyItemInserted(messages.size() - 1);
                                     binding.chatRecyclerView.scrollToPosition(messages.size() - 1);
+                                    
+                                    // If message is from other user, mark it as read immediately
+                                    if (!message.isSentByMe()) {
+                                        markAsRead();
+                                    }
                                 }
                             }
                         }
@@ -198,6 +219,12 @@ public class ChatActivity extends AppCompatActivity {
         conversation.put("lastSenderId", currentUserId);
         conversation.put("lastSenderName", currentUserName);
 
+        // Reset read status for the receiver
+        Map<String, Object> readStatus = new HashMap<>();
+        readStatus.put(currentUserId, true);
+        readStatus.put(otherUserId, false);
+        conversation.put("readStatus", readStatus);
+
         db.collection("conversations").document(conversationId)
                 .set(conversation, SetOptions.merge());
     }
@@ -205,13 +232,15 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        PresenceManager.updateStatus(true);
+        activeChatUserId = otherUserId;
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        PresenceManager.updateStatus(false);
+        if (otherUserId != null && otherUserId.equals(activeChatUserId)) {
+            activeChatUserId = null;
+        }
     }
 
     @Override

@@ -1,13 +1,16 @@
 package com.petunity.adapters;
 
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.firebase.auth.FirebaseAuth;
 import com.petunity.R;
 import com.petunity.activities.ChatActivity;
 import com.petunity.databinding.ItemConversationBinding;
@@ -58,10 +61,23 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesAdapter.Conver
         }
 
         void bind(Conversation conversation) {
+            String currentUserId = FirebaseAuth.getInstance().getUid();
+            boolean unread = conversation.isUnread(currentUserId);
+
             String displayName = conversation.getName() != null ? conversation.getName() : "Loading...";
             binding.userNameText.setText(displayName);
             binding.lastMessageText.setText(conversation.getLastMessage());
             binding.timeText.setText(conversation.getTime());
+
+            if (unread) {
+                binding.lastMessageText.setTypeface(null, Typeface.BOLD);
+                binding.lastMessageText.setTextColor(ContextCompat.getColor(binding.getRoot().getContext(), R.color.text_primary));
+                binding.userNameText.setTypeface(null, Typeface.BOLD);
+            } else {
+                binding.lastMessageText.setTypeface(null, Typeface.NORMAL);
+                binding.lastMessageText.setTextColor(ContextCompat.getColor(binding.getRoot().getContext(), R.color.text_secondary));
+                binding.userNameText.setTypeface(null, Typeface.NORMAL);
+            }
 
             Glide.with(binding.getRoot().getContext())
                     .load(conversation.getAvatarUrl())

@@ -26,7 +26,6 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentChange;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.petunity.R;
@@ -37,23 +36,26 @@ import com.petunity.fragments.FindFragment;
 import com.petunity.fragments.HomeFragment;
 import com.petunity.fragments.PlayFragment;
 import com.petunity.fragments.ProfileFragment;
+import com.petunity.models.Conversation;
 import com.petunity.models.Post;
-import com.petunity.models.UserManager;
-import com.petunity.utils.PresenceManager;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     
+    // Intent Keys
     public static final String EXTRA_OPEN_FRAGMENT = "open_fragment";
     public static final String FRAGMENT_CHAT = "chat";
     public static final String FRAGMENT_ALERT = "alert";
+    
+    // Notification Constants
     private static final String CHANNEL_ID_URGENT = "urgent_alerts";
+    private static final String CHANNEL_ID_CHAT = "chat_notifications";
 
     private ActivityMainBinding binding;
     private ListenerRegistration urgentAlertListener;
+    private ListenerRegistration messageListener;
     private ConnectivityManager.NetworkCallback networkCallback;
     private long sessionStartTime;
 
@@ -68,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
+        // Initialize View Binding
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         
@@ -75,10 +78,11 @@ public class MainActivity extends AppCompatActivity {
         checkPermissions();
         setupNetworkListener();
 
+        // Setup UI Components via binding
         binding.bottomNavigationView.setItemIconTintList(null);
 
         handleIntent(getIntent());
-        setupProfileObserver();
+        loadProfileImage();
 
         binding.profileIconCard.setOnClickListener(v -> {
             loadFragment(new ProfileFragment());
@@ -108,48 +112,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         listenForUrgentAlerts();
-    }
-
-    private void setupProfileObserver() {
-        // Observe profile image for real-time updates
-        UserManager.getInstance().getProfileImageLiveData().observe(this, url -> {
-            if (url != null && !url.isEmpty()) {
-                Glide.with(this)
-                        .load(url)
-                        .circleCrop()
-                        .placeholder(R.drawable.ic_user)
-                        .into(binding.profileIcon);
-            } else {
-                binding.profileIcon.setImageResource(R.drawable.ic_user);
-            }
-        });
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        updateUserPresence(true);
-        PresenceManager.updateStatus(true);
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        updateUserPresence(false);
-        PresenceManager.updateStatus(false);
-    }
-
-    private void updateUserPresence(boolean isOnline) {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid != null) {
-            Map<String, Object> status = new HashMap<>();
-            status.put("online", isOnline);
-            status.put("lastActive", FieldValue.serverTimestamp());
-            
-            FirebaseFirestore.getInstance().collection("users").document(uid)
-                    .update(status)
-                    .addOnFailureListener(e -> Log.e(TAG, "Failed to update presence", e));
-        }
+        listenForNewMessages();
     }
 
     private void setupNetworkListener() {
@@ -199,6 +162,27 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    private void loadProfileImage() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid != null) {
+            FirebaseFirestore.getInstance().collection("users").document(uid).get()
+                .addOnSuccessListener(doc -> {
+                    if (isFinishing()) return;
+                    String url = doc.getString("profileImageUrl");
+                    if (url != null && !url.isEmpty()) {
+                        Glide.with(this)
+                                .load(url)
+                                .circleCrop()
+                                .placeholder(R.drawable.ic_user)
+                                .into(binding.profileIcon);
+                    } else {
+                        binding.profileIcon.setImageResource(R.drawable.ic_user);
+                    }
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Error loading profile image", e));
+        }
+    }
+
     private void listenForUrgentAlerts() {
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         String currentUserId = FirebaseAuth.getInstance().getUid();
@@ -220,6 +204,42 @@ public class MainActivity extends AppCompatActivity {
                                     post.getUserId() != null && 
                                     !post.getUserId().equals(currentUserId)) {
                                     showUrgentNotification(post);
+                                }
+                            }
+                        }
+                    }
+                });
+    }
+
+    private void listenForNewMessages() {
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String currentUserId = FirebaseAuth.getInstance().getUid();
+        if (currentUserId == null) return;
+
+        messageListener = db.collection("conversations")
+                .whereArrayContains("participants", currentUserId)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Message Listener failed.", error);
+                        return;
+                    }
+
+                    if (value != null) {
+                        for (DocumentChange dc : value.getDocumentChanges()) {
+                            if (dc.getType() == DocumentChange.Type.MODIFIED || dc.getType() == DocumentChange.Type.ADDED) {
+                                Conversation conv = dc.getDocument().toObject(Conversation.class);
+                                
+                                // Show notification if:
+                                // 1. Last sender is not me
+                                // 2. Message is new (timestamp > sessionStartTime)
+                                // 3. We are not currently chatting with this person
+                                if (conv != null && conv.getLastSenderId() != null && 
+                                    !conv.getLastSenderId().equals(currentUserId) &&
+                                    conv.getLastTimestampAsDate() != null &&
+                                    conv.getLastTimestampAsDate().toDate().getTime() > sessionStartTime &&
+                                    !conv.getLastSenderId().equals(ChatActivity.activeChatUserId)) {
+                                    
+                                    showChatNotification(conv);
                                 }
                             }
                         }
@@ -250,6 +270,37 @@ public class MainActivity extends AppCompatActivity {
 
         if (notificationManager != null) {
             notificationManager.notify((int) System.currentTimeMillis(), builder.build());
+        }
+    }
+
+    private void showChatNotification(Conversation conv) {
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if (notificationManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID_CHAT, "New Messages", NotificationManager.IMPORTANCE_HIGH);
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        Intent intent = new Intent(this, ChatActivity.class);
+        intent.putExtra("other_user_id", conv.getLastSenderId());
+        intent.putExtra("user_name", conv.getLastSenderName());
+        intent.putExtra("avatar_url", conv.getAvatarUrl());
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID_CHAT)
+                .setSmallIcon(R.drawable.logo_pet)
+                .setContentTitle(conv.getLastSenderName())
+                .setContentText(conv.getLastMessage())
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setContentIntent(pendingIntent);
+
+        if (notificationManager != null) {
+            notificationManager.notify(conv.getLastSenderId().hashCode(), builder.build());
         }
     }
 
@@ -296,12 +347,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (urgentAlertListener != null) urgentAlertListener.remove();
+        if (messageListener != null) messageListener.remove();
         if (networkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) cm.unregisterNetworkCallback(networkCallback);
         }
-        updateUserPresence(false);
-        PresenceManager.updateStatus(false);
         binding = null;
     }
 }

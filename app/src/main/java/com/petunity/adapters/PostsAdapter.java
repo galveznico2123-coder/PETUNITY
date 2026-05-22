@@ -19,7 +19,7 @@ import com.petunity.activities.ChatActivity;
 import com.petunity.databinding.ItemPostBinding;
 import com.petunity.models.Post;
 import com.petunity.models.UserManager;
-import com.petunity.utils.TimeUtils;
+import com.petunity.utils.PetTimeUtils;
 
 import java.util.List;
 import java.util.Locale;
@@ -90,7 +90,7 @@ public class PostsAdapter extends RecyclerView.Adapter<PostsAdapter.PostViewHold
 
             // Display relative time
             if (post.getTimestamp() != null) {
-                binding.timeText.setText(TimeUtils.getTimeAgo(post.getTimestamp().toDate()));
+                binding.timeText.setText(PetTimeUtils.getTimeAgo(post.getTimestamp().toDate()));
             } else {
                 binding.timeText.setText(post.getTimeLabel());
             }
