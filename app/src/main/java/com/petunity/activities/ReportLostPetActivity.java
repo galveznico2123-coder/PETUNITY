@@ -1,18 +1,19 @@
 package com.petunity.activities;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
@@ -26,15 +27,18 @@ import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
+import com.petunity.models.ImageValidator;
 import com.petunity.models.PetListing;
 import com.petunity.models.UserManager;
 import com.petunity.utils.ImageUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 public class ReportLostPetActivity extends AppCompatActivity {
+    private static final String TAG = "ReportLostPetActivity";
     private TextInputEditText petNameInput, breedInput, locationInput, descriptionInput, rewardInput, contactInput;
     private TextInputLayout rewardInputLayout;
     private ImageView petImageView;
@@ -44,18 +48,58 @@ public class ReportLostPetActivity extends AppCompatActivity {
 
     private Uri selectedImageUri;
     private boolean isLostReport;
+    private boolean isPetValidated = false;
 
     private final ActivityResultLauncher<String[]> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.OpenDocument(),
             uri -> {
                 if (uri != null) {
-                    selectedImageUri = uri;
-                    petImageView.setImageURI(selectedImageUri);
-                    petImageView.setVisibility(View.VISIBLE);
-                    addPhotoLayout.setVisibility(View.GONE);
+                    validateAndLoadImage(uri);
                 }
             }
     );
+
+    private void validateAndLoadImage(Uri uri) {
+        try {
+            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            InputStream inputStream = getContentResolver().openInputStream(uri);
+            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+            if (inputStream != null) inputStream.close();
+
+            if (bitmap != null) {
+                setLoading(true);
+                ImageValidator.validateIsPet(this, bitmap, new ImageValidator.ValidationCallback() {
+                    @Override
+                    public void onResult(boolean isPet) {
+                        setLoading(false);
+                        if (isPet) {
+                            isPetValidated = true;
+                            selectedImageUri = uri;
+                            petImageView.setImageBitmap(bitmap);
+                            petImageView.setVisibility(View.VISIBLE);
+                            addPhotoLayout.setVisibility(View.GONE);
+                        } else {
+                            isPetValidated = false;
+                            selectedImageUri = null;
+                            Toast.makeText(ReportLostPetActivity.this, "no pet detected please try again", Toast.LENGTH_LONG).show();
+                            petImageView.setVisibility(View.GONE);
+                            addPhotoLayout.setVisibility(View.VISIBLE);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        setLoading(false);
+                        Log.e(TAG, "Validation error", e);
+                        Toast.makeText(ReportLostPetActivity.this, "Error validating image", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading image", e);
+            Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,8 +137,8 @@ public class ReportLostPetActivity extends AppCompatActivity {
     }
 
     private void validateAndSubmit() {
-        if (selectedImageUri == null) {
-            Toast.makeText(this, "A photo of the pet is required for the alert", Toast.LENGTH_SHORT).show();
+        if (selectedImageUri == null || !isPetValidated) {
+            Toast.makeText(this, "A valid photo of the pet is required", Toast.LENGTH_SHORT).show();
             return;
         }
 

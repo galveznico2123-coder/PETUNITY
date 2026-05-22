@@ -40,6 +40,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.petunity.R;
+import com.petunity.models.ImageValidator;
 import com.petunity.viewmodels.AlertViewModel;
 
 import java.io.IOException;
@@ -71,13 +72,12 @@ public class AlertFragment extends Fragment {
             new ActivityResultContracts.OpenDocument(),
             uri -> {
                 if (uri != null) {
-                    selectedImageUri = uri;
-                    loadPreviewImage(uri);
+                    loadAndValidateImage(uri);
                 }
             }
     );
 
-    private void loadPreviewImage(Uri uri) {
+    private void loadAndValidateImage(Uri uri) {
         try {
             // Take persistable URI permission
             requireContext().getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -87,15 +87,40 @@ public class AlertFragment extends Fragment {
             if (inputStream != null) inputStream.close();
 
             if (bitmap != null) {
-                photoImageView.setImageBitmap(bitmap);
-                photoImageView.setVisibility(View.VISIBLE);
-                addPhotoLayout.setVisibility(View.GONE);
+                // Show loading while validating
+                if (loadingOverlay != null) loadingOverlay.setVisibility(View.VISIBLE);
+                
+                ImageValidator.validateIsPet(requireContext(), bitmap, new ImageValidator.ValidationCallback() {
+                    @Override
+                    public void onResult(boolean isPet) {
+                        if (!isAdded()) return;
+                        if (loadingOverlay != null) loadingOverlay.setVisibility(View.GONE);
+                        
+                        if (isPet) {
+                            selectedImageUri = uri;
+                            photoImageView.setImageBitmap(bitmap);
+                            photoImageView.setVisibility(View.VISIBLE);
+                            addPhotoLayout.setVisibility(View.GONE);
+                        } else {
+                            selectedImageUri = null;
+                            Toast.makeText(requireContext(), "no pet detected please try again", Toast.LENGTH_LONG).show();
+                            photoImageView.setVisibility(View.GONE);
+                            addPhotoLayout.setVisibility(View.VISIBLE);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        if (!isAdded()) return;
+                        if (loadingOverlay != null) loadingOverlay.setVisibility(View.GONE);
+                        Log.e(TAG, "Image validation error", e);
+                        Toast.makeText(requireContext(), "Error validating image", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         } catch (Exception e) {
-            Log.e(TAG, "Failed to load preview image", e);
-            photoImageView.setImageURI(uri); // Fallback
-            photoImageView.setVisibility(View.VISIBLE);
-            addPhotoLayout.setVisibility(View.GONE);
+            Log.e(TAG, "Failed to load image", e);
+            Toast.makeText(requireContext(), "Failed to load image", Toast.LENGTH_SHORT).show();
         }
     }
 
